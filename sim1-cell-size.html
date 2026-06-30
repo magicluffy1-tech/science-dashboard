@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>세포가 작아야 사는 이유 — 시뮬레이션 #1</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(155deg,#06091c 0%,#09132a 55%,#060d1c 100%);
+    color: #d2e6ff;
+    font-family: "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+    padding: 20px 14px 48px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 20px; }
+  .eyebrow { font-size: 9px; letter-spacing: 5px; color: #38bdf8; font-weight: 700; margin-bottom: 8px; }
+  h1 {
+    margin: 0; font-size: 21px; font-weight: 900;
+    background: linear-gradient(90deg,#e4f1ff 0%,#7dd3fc 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .sub { margin: 7px 0 0; color: #304f6e; font-size: 12px; }
+  .controls { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
+  button {
+    padding: 9px 16px; border: none; border-radius: 8px; font-weight: 700;
+    font-size: 13px; cursor: pointer; font-family: inherit; color: #fff;
+  }
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+  #btnAbsorb { background: linear-gradient(135deg,#0ea5e9,#6366f1); }
+  #btnX { background: rgba(20,50,100,0.5); border: 1px solid rgba(80,130,190,0.2); }
+  #btnX.on { background: linear-gradient(135deg,#f59e0b,#ef4444); border: none; }
+  #btnReset { background: transparent; color: #3a5a78; border: 1px solid #162840; }
+
+  .progress-wrap { margin-bottom: 16px; padding: 0 2px; display: none; }
+  .progress-wrap.show { display: block; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 10px; color: #2e4f6a; margin-bottom: 4px; }
+  .progress-label span:last-child { color: #f87171; font-family: monospace; }
+  .progress-track { height: 5px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg,#f43f5e,#dc2626); border-radius: 3px; }
+
+  .row-title { font-size: 11.5px; font-weight: 700; margin-bottom: 8px; padding-left: 2px; }
+  .row-title span { color: #2e4f6a; font-weight: 400; }
+  .row-title.a { color: #5eead4; }
+  .row-title.b { color: #f472b6; }
+  .row-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .vs { text-align: center; color: #22384f; font-size: 16px; margin: 10px 0; }
+
+  .panel {
+    background: rgba(255,255,255,0.022);
+    border: 1px solid rgba(80,135,200,0.12);
+    border-radius: 13px; padding: 10px 6px; text-align: center;
+    transition: border-color 0.6s;
+  }
+  .panel.done { border-color: rgba(74,222,128,0.3); }
+  .panel-label { font-size: 11px; font-weight: 700; margin-bottom: 1px; }
+  .panel-sub { font-size: 9px; color: #3a5878; margin-bottom: 7px; }
+  .panel-viz { height: 96px; display: flex; align-items: center; justify-content: center; margin-bottom: 7px; }
+  .panel-status { font-size: 9.5px; font-weight: 700; margin-bottom: 2px; color: #fbbf24; display: none; }
+  .panel-status.show { display: block; }
+  .panel-status.done { color: #4ade80; }
+  .panel-depth-note { font-size: 8px; color: #22384f; margin-bottom: 6px; font-family: monospace; }
+  .panel-stat { display: flex; justify-content: space-between; padding: 1px 4px; }
+  .panel-stat .l { font-size: 9px; color: #304f6a; }
+  .panel-stat .v { font-size: 10px; font-weight: 700; font-family: monospace; }
+
+  .insight-pink {
+    margin-top: 10px; padding: 10px 12px;
+    background: rgba(244,114,182,0.06); border: 1px solid rgba(244,114,182,0.18);
+    border-radius: 10px; font-size: 11.5px; color: #f9c9e3; line-height: 1.7; display: none;
+  }
+  .insight-pink.show { display: block; }
+
+  .graph-box {
+    background: rgba(255,255,255,0.018); border: 1px solid rgba(80,130,200,0.1);
+    border-radius: 14px; padding: 16px 16px; margin-bottom: 14px; margin-top: 18px;
+  }
+  .graph-title { font-size: 12px; font-weight: 700; color: #7dd3fc; margin-bottom: 4px; text-align: center; }
+  .graph-sub { font-size: 10px; color: #2a4560; text-align: center; margin-bottom: 14px; }
+  .bar-row { margin-bottom: 10px; }
+  .bar-label { display: flex; justify-content: space-between; font-size: 10.5px; margin-bottom: 4px; }
+  .bar-label .name { color: #4a6a90; }
+  .bar-label .val { font-family: monospace; font-weight: 800; }
+  .bar-track { height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; width: 0%; border-radius: 4px; transition: width 0.5s; }
+  .bar-note { font-size: 9px; color: #22384f; margin-top: 6px; margin-bottom: -2px; }
+
+  .callout-green {
+    margin-top: 8px; padding: 11px 12px;
+    background: rgba(74,222,128,0.06); border: 1px solid rgba(74,222,128,0.18);
+    border-radius: 10px; font-size: 12px; color: #86efac; line-height: 1.7;
+  }
+  .callout-red {
+    background: rgba(220,38,38,0.07); border: 1px solid rgba(220,38,38,0.2);
+    border-radius: 12px; padding: 13px 16px; font-size: 13px; line-height: 1.8;
+    color: #fca5a5; margin-bottom: 14px; display: none;
+  }
+  .callout-red.show { display: block; }
+  .callout-blue {
+    background: rgba(56,189,248,0.05); border: 1px solid rgba(56,189,248,0.18);
+    border-radius: 12px; padding: 14px 16px; font-size: 13px; line-height: 1.85; color: #bae6fd;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">생식과 유전 · SIMULATION #1</div>
+    <h1>그냥 커진다 vs 쪼개서 커진다</h1>
+    <p class="sub">🧊 같은 시간에 흡수되는 정도를 6개 동시에 비교해보세요</p>
+  </header>
+
+  <div class="controls">
+    <button id="btnAbsorb">🔴 영양 물질 흡수 시작 (6개 동시)</button>
+    <button id="btnX" disabled>✂️ 단면 보기 OFF</button>
+    <button id="btnReset">↩ 초기화</button>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-label">
+      <span>잉크 침투 깊이 (여섯 가지 모두 동일한 시간 경과)</span>
+      <span id="depthVal">0.000 cm</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <div class="row-title a">A. 그냥 커진 경우 <span>— 분열 없이 부피만 증가 (V: 1→8→27)</span></div>
+  <div class="row-grid" id="rowA"></div>
+
+  <div class="vs">⎯⎯⎯ VS ⎯⎯⎯</div>
+
+  <div class="row-title b">B. 분열한 경우 <span>— 세포 크기는 항상 1cm 유지, 분열로 개수만 늘려 같은 부피까지 성장</span></div>
+  <div class="row-grid" id="rowB"></div>
+  <div class="insight-pink" id="insightPink">
+    👀 <strong>2번째·3번째 칸이 똑같은 타이밍에 "완전 흡수"되는 것</strong>은 우연이 아니에요.
+    세포 8개든 27개든 <strong>개별 세포 크기가 똑같이 1cm</strong>이기 때문에 흡수 속도가 동일합니다.
+    세포 수가 아무리 늘어도 한 세포 크기만 작게 유지하면 다 같이 빠르게 흡수돼요 — 이게 분열의 진짜 이점입니다.
+  </div>
+
+  <div class="graph-box">
+    <div class="graph-title">📊 표면적 ÷ 부피 비율 — 6가지 한눈에 비교</div>
+    <div class="graph-sub">비율이 높을수록 같은 시간에 더 효율적으로 흡수</div>
+    <div id="graphBars"></div>
+    <div class="callout-green">
+      💡 <strong>그냥 커지면</strong> 비율이 6.0 → 3.0 → 2.0으로 <strong>떨어지지만</strong>,
+      <strong> 1cm 세포 크기를 유지한 채 분열하면</strong> 부피가 똑같이 늘어도 비율이 <strong>항상 6.0으로 유지</strong>됩니다.
+    </div>
+  </div>
+
+  <div class="callout-red" id="calloutRed">
+    💡 같은 시간이 지났는데 <strong>A행의 3cm 세포</strong>와 <strong>B행의 27개(1cm씩)</strong>는 출발도 같고 도달한 부피도 같지만,
+    A는 아직도 중심부가 굶주리고 B는 이미 완전히 흡수를 마쳤어요. 이게 바로 <strong>세포가 분열하는 이유</strong>입니다!
+  </div>
+
+  <div class="callout-blue">
+    🧬 <strong>핵심 결론</strong><br/>
+    A와 B는 똑같은 1cm 세포에서 출발해 똑같은 부피까지 자랍니다.
+    세포가 분열 없이 그냥 커지기만 하면(A) 표면적/부피 비율이 6→3→2로 점점 나빠지지만,
+    <strong>세포 크기(1cm)를 유지한 채 분열해서 개수를 늘리면(B)</strong> 부피가 아무리 커져도 비율이 <strong>항상 6으로 일정</strong>하게 유지됩니다.
+    그래서 생물은 세포를 무한정 키우지 않고 <strong>분열을 통해 작은 세포 여러 개로 채워나갑니다.</strong>
+  </div>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════
+   데이터 정의
+══════════════════════════════════════════════════ */
+const GROWTH = [
+  { label: "1cm 세포",          grid: 1, cell: 1, count: 1,  accent: "#5eead4" },
+  { label: "2cm 세포",          grid: 1, cell: 2, count: 1,  accent: "#22d3ee" },
+  { label: "3cm 세포",          grid: 1, cell: 3, count: 1,  accent: "#0ea5e9" },
+];
+const SPLIT = [
+  { label: "출발점 (동일)",       grid: 1, cell: 1, count: 1,  accent: "#fb923c" },
+  { label: "2cm 부피만큼 분열",   grid: 2, cell: 1, count: 8,  accent: "#a78bfa" },
+  { label: "3cm 부피만큼 분열",   grid: 3, cell: 1, count: 27, accent: "#f472b6" },
+];
+const MAX_DEPTH_RATIO = 0.42;
+const DUR = 3400;
+
+function calc(cell, count) {
+  const sa  = +(6 * cell * cell * count).toFixed(1);
+  const vol = +(cell * cell * cell * count).toFixed(1);
+  return { sa, vol, ratio: +(sa / vol).toFixed(2) };
+}
+
+/* ══════════════════════════════════════════════════
+   아이소메트릭 voxel SVG 생성
+══════════════════════════════════════════════════ */
+function buildIsoSVG(grid, cell, depth, boxPx) {
+  const U = (boxPx * 0.74) / (grid * cell + (grid - 1) * 0.18);
+  const CX = 0.866, CY = 0.5, GAP = 0.18;
+  const iso = (x, y, z) => [(x - z) * CX * U, -(y * U) + (x + z) * CY * U];
+  const absorbedFrac = Math.min(depth / (cell * MAX_DEPTH_RATIO), 1);
+
+  const cubes = [];
+  for (let xi = 0; xi < grid; xi++)
+    for (let yi = 0; yi < grid; yi++)
+      for (let zi = 0; zi < grid; zi++)
+        cubes.push({ ox: xi*(cell+GAP), oy: yi*(cell+GAP), oz: zi*(cell+GAP) });
+
+  const faces = [];
+  cubes.forEach(c => {
+    const { ox, oy, oz } = c;
+    faces.push({ type:"top",   pts:[iso(ox,oy+cell,oz),iso(ox+cell,oy+cell,oz),iso(ox+cell,oy+cell,oz+cell),iso(ox,oy+cell,oz+cell)] });
+    faces.push({ type:"right", pts:[iso(ox+cell,oy,oz),iso(ox+cell,oy+cell,oz),iso(ox+cell,oy+cell,oz+cell),iso(ox+cell,oy,oz+cell)] });
+    faces.push({ type:"front", pts:[iso(ox,oy,oz+cell),iso(ox+cell,oy,oz+cell),iso(ox+cell,oy+cell,oz+cell),iso(ox,oy+cell,oz+cell)] });
+  });
+
+  const allPts = faces.flatMap(f => f.pts);
+  const xs = allPts.map(p=>p[0]), ys = allPts.map(p=>p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const P = 5;
+  const W = maxX - minX + 2*P, H = maxY - minY + 2*P;
+  const ox0 = -minX + P, oy0 = -minY + P;
+  const mkPath = pts => pts.map((p,i)=>`${i?"L":"M"}${(p[0]+ox0).toFixed(1)},${(p[1]+oy0).toFixed(1)}`).join(" ")+"Z";
+
+  const BASES = { top:[175,212,250], right:[145,180,228], front:[112,148,202] };
+  const REDS  = { top:[220,45,55],   right:[185,30,40],   front:[150,20,30] };
+  const sa = Math.min(absorbedFrac / 0.55, 1);
+  const fc = type => {
+    const b = BASES[type], r = REDS[type];
+    return `rgb(${Math.round(b[0]+(r[0]-b[0])*sa)},${Math.round(b[1]+(r[1]-b[1])*sa)},${Math.round(b[2]+(r[2]-b[2])*sa)})`;
+  };
+  const innerDone = absorbedFrac >= 1;
+
+  const pathsHTML = faces.map(f =>
+    `<path d="${mkPath(f.pts)}" fill="${fc(f.type)}" stroke="${innerDone ? 'rgba(255,255,255,0.25)' : 'rgba(0,12,35,0.45)'}" stroke-width="${innerDone ? 1 : 0.6}" />`
+  ).join("");
+
+  return `<svg viewBox="0 0 ${W} ${H}" width="${boxPx}" height="${boxPx}">${pathsHTML}</svg>`;
+}
+
+/* ══════════════════════════════════════════════════
+   단면 픽셀 캔버스 그리기
+══════════════════════════════════════════════════ */
+function drawXSection(canvas, cell, depth, px) {
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(px, px);
+  const buf = img.data;
+  const d = Math.min(depth, cell/2 + 0.05);
+  for (let py = 0; py < px; py++) {
+    for (let pxi = 0; pxi < px; pxi++) {
+      const x = (pxi/px)*cell, y = (py/px)*cell, z = cell/2;
+      const dist = Math.min(x, y, z, cell-x, cell-y, cell-z);
+      const i = (py*px + pxi) * 4;
+      if (dist <= d) {
+        const t = Math.min((d-dist)/0.18, 1);
+        buf[i]=200+50*t; buf[i+1]=24+6*(1-t); buf[i+2]=34; buf[i+3]=255;
+      } else {
+        const t = Math.min((dist-d)/0.35, 1);
+        buf[i]=110+90*(1-t); buf[i+1]=155+75*(1-t); buf[i+2]=218; buf[i+3]=215+35*(1-t);
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.strokeStyle = "rgba(100,170,230,0.5)"; ctx.lineWidth = 2;
+  ctx.strokeRect(1,1,px-2,px-2);
+}
+
+/* ══════════════════════════════════════════════════
+   패널 DOM 생성/업데이트
+══════════════════════════════════════════════════ */
+function createPanel(s) {
+  const el = document.createElement("div");
+  el.className = "panel";
+  el.innerHTML = `
+    <div class="panel-label" style="color:${s.accent}">${s.label}</div>
+    <div class="panel-sub">${s.count}개 × ${s.cell}cm</div>
+    <div class="panel-viz"></div>
+    <div class="panel-status"></div>
+    <div class="panel-depth-note">완료 깊이 기준: ${(s.cell/2).toFixed(2)}cm (세포 1개 크기로 결정)</div>
+    <div class="panel-stats"></div>
+  `;
+  return el;
+}
+
+function updatePanel(el, s, depth, showX) {
+  const st = calc(s.cell, s.count);
+  const localFrac = Math.min(depth / (s.cell * MAX_DEPTH_RATIO), 1);
+  const fullyAbsorbed = localFrac >= 1;
+
+  el.classList.toggle("done", depth > 0 && fullyAbsorbed);
+
+  const viz = el.querySelector(".panel-viz");
+  const boxPx = 82;
+  if (showX) {
+    let canvas = viz.querySelector("canvas");
+    if (!canvas) {
+      viz.innerHTML = `<canvas width="${boxPx}" height="${boxPx}" style="border-radius:8px;display:block;"></canvas>`;
+      canvas = viz.querySelector("canvas");
+    }
+    drawXSection(canvas, s.cell, depth, boxPx);
+  } else {
+    viz.innerHTML = buildIsoSVG(s.grid, s.cell, depth, boxPx);
+  }
+
+  const status = el.querySelector(".panel-status");
+  if (depth > 0) {
+    status.classList.add("show");
+    status.classList.toggle("done", fullyAbsorbed);
+    status.textContent = fullyAbsorbed ? "✅ 완전 흡수" : "⏳ 흡수 중";
+  } else {
+    status.classList.remove("show");
+  }
+
+  const statsEl = el.querySelector(".panel-stats");
+  statsEl.innerHTML = `
+    <div class="panel-stat"><span class="l">V</span><span class="v" style="color:#a78bfa">${st.vol}</span></div>
+    <div class="panel-stat"><span class="l">SA</span><span class="v" style="color:${s.accent}">${st.sa}</span></div>
+    <div class="panel-stat"><span class="l">SA/V</span><span class="v" style="color:#4ade80">${st.ratio}</span></div>
+  `;
+}
+
+/* ══════════════════════════════════════════════════
+   초기 셋업
+══════════════════════════════════════════════════ */
+const rowA = document.getElementById("rowA");
+const rowB = document.getElementById("rowB");
+const panelsA = GROWTH.map(s => { const el = createPanel(s); rowA.appendChild(el); return el; });
+const panelsB = SPLIT.map(s => { const el = createPanel(s); rowB.appendChild(el); return el; });
+
+const allStats = [...GROWTH, ...SPLIT].map(s => ({ ...s, ...calc(s.cell, s.count) }));
+const maxRatio = Math.max(...allStats.map(s => s.ratio));
+
+const graphBars = document.getElementById("graphBars");
+allStats.forEach((s, i) => {
+  const row = document.createElement("div");
+  row.className = "bar-row";
+  row.innerHTML = `
+    <div class="bar-label">
+      <span class="name">${i < 3 ? "A·" : "B·"}${s.label}</span>
+      <span class="val" style="color:${s.accent}">${s.ratio}</span>
+    </div>
+    <div class="bar-track"><div class="bar-fill" style="width:${(s.ratio/maxRatio)*100}%;background:linear-gradient(90deg,${s.accent},${s.accent}99)"></div></div>
+    ${i === 2 ? '<div class="bar-note">↓ 여기부터는 같은 출발점(1cm)에서 분열로 자란 B의 비율입니다 ↓</div>' : ''}
+  `;
+  graphBars.appendChild(row);
+});
+
+/* ══════════════════════════════════════════════════
+   상태 & 애니메이션
+══════════════════════════════════════════════════ */
+let depth = 0, running = false, showX = false, t0 = null, rafId = null;
+const maxReach = 3 * MAX_DEPTH_RATIO + 0.15;
+
+const btnAbsorb = document.getElementById("btnAbsorb");
+const btnX = document.getElementById("btnX");
+const btnReset = document.getElementById("btnReset");
+const progressWrap = document.getElementById("progressWrap");
+const progressFill = document.getElementById("progressFill");
+const depthVal = document.getElementById("depthVal");
+const insightPink = document.getElementById("insightPink");
+const calloutRed = document.getElementById("calloutRed");
+
+function renderAll() {
+  panelsA.forEach((el, i) => updatePanel(el, GROWTH[i], depth, showX));
+  panelsB.forEach((el, i) => updatePanel(el, SPLIT[i], depth, showX));
+
+  progressWrap.classList.toggle("show", depth > 0);
+  progressFill.style.width = `${(depth/maxReach)*100}%`;
+  depthVal.textContent = `${depth.toFixed(3)} cm`;
+
+  insightPink.classList.toggle("show", depth > 0);
+  calloutRed.classList.toggle("show", depth >= maxReach * 0.95);
+
+  btnX.disabled = depth === 0;
+}
+
+function tick(t) {
+  const pct = Math.min((t - t0) / DUR, 1);
+  const eased = 1 - Math.pow(1-pct, 2.2);
+  depth = eased * maxReach;
+  renderAll();
+  if (pct < 1) rafId = requestAnimationFrame(tick);
+  else running = false;
+}
+
+btnAbsorb.addEventListener("click", () => {
+  if (running) return;
+  depth = 0; running = true; t0 = performance.now();
+  rafId = requestAnimationFrame(tick);
+});
+
+btnX.addEventListener("click", () => {
+  showX = !showX;
+  btnX.classList.toggle("on", showX);
+  btnX.textContent = `✂️ 단면 보기 ${showX ? "ON" : "OFF"}`;
+  renderAll();
+});
+
+btnReset.addEventListener("click", () => {
+  if (rafId) cancelAnimationFrame(rafId);
+  running = false; depth = 0; showX = false;
+  btnX.classList.remove("on");
+  btnX.textContent = "✂️ 단면 보기 OFF";
+  renderAll();
+});
+
+renderAll();
+</script>
+</body>
+</html>
