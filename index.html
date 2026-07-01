@@ -14,7 +14,7 @@
     ::-webkit-scrollbar-track { background: #0F172A; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
 
-    /* 💻 데스크톱 해상도 전용 스케일 업 스타일 프리셋 */
+    /* 💻 데스크톱 해상도 전용 가시성 및 스케일 업 스타일 프리셋 */
     @media (min-width: 1024px) {
       .desktop-hdr-title { font-size: 20px !important; }
       .desktop-hdr-desc { font-size: 12px !important; }
@@ -31,6 +31,13 @@
   <script type="text/babel">
     const { useState, useMemo } = React;
 
+// ══════════════════════════════════════════════════════════════════
+// 시뮬레이션 데이터
+// subject: 물리 / 화학 / 생물 / 지구과학
+// grade: 1 / 2 / 3
+// unit: 단원명
+// url: 실제 시뮬레이션 경로 (비워두면 안내 모달 표시)
+// ══════════════════════════════════════════════════════════════════
 const SIMULATIONS = [
   // ─── 1학년 ─── 생물의 구성과 다양성
   { id: 1,   grade: 1, subject: "생물", unit: "생물의 구성과 다양성", title: "동물세포 vs 식물세포 구조 탐색기", icon: "🦠", desc: "두 세포를 비교하며 핵·세포막·세포벽·엽록체 등 구성 요소를 클릭해 확인합니다.", url: "" },
@@ -55,7 +62,7 @@ const SIMULATIONS = [
   { id: 13,  grade: 1, subject: "물리", unit: "힘의 작용", title: "중력과 무게 측정 시뮬레이터", icon: "🌍", desc: "행성마다 다른 중력가속도를 설정하고 같은 질량의 물체 무게를 비교합니다.", url: "" },
   { id: 14,  grade: 1, subject: "물리", unit: "힘의 작용", title: "용수철 탄성력 - 훅의 법칙", icon: "🔩", desc: "용수철에 추를 달아 늘어난 길이와 탄성력의 비례 관계를 그래프로 확인합니다.", url: "" },
   { id: 15,  grade: 1, subject: "물리", unit: "힘의 작용", title: "부력 실험 (아르키메데스)", icon: "🚢", desc: "물체의 밀도·부피와 유체 밀도를 바꾸며 부력의 크기를 계산하고 뜨고 가라앉는 조건을 탐구합니다.", url: "" },
-  { id: 16,  grade: 1, subject: "물리", unit: "힘의 작용", title: "마찰력 경사면 실험", icon: "📐", desc: "경사각과 표면 재질을 바꾸며 정지·운동 마찰력 변화를 실시간으로 측정합니다.", url: "" },
+  { id: 16,  grade: 1, subject: "물리", unit: "힘의 작용", title: "마찰력 경사면 실험", icon: "📐", desc: "경사각 and 표면 재질을 바꾸며 정지·운동 마찰력 변화를 실시간으로 측정합니다.", url: "" },
   { id: 17,  grade: 1, subject: "물리", unit: "힘의 작용", title: "힘의 합력과 평형", icon: "⚖️", desc: "여러 방향의 힘 벡터를 더해 합력을 구하고 평형 조건을 시각적으로 확인합니다.", url: "" },
 
   // ─── 1학년 ─── 기체의 성질
@@ -91,7 +98,7 @@ const SIMULATIONS = [
   // ─── 2학년 ─── 물질의 구성
   { id: 38,  grade: 2, subject: "화학", unit: "물질의 구성", title: "원자 모형 변천사 타임라인", icon: "⚛️", desc: "돌턴→톰슨→러더퍼드→보어 모형을 순서대로 탐색하며 각 모형의 증거와 한계를 비교합니다.", url: "" },
   { id: 39,  grade: 2, subject: "화학", unit: "물질의 구성", title: "주기율표 인터랙티브 탐색기", icon: "🗂️", desc: "원소를 클릭하면 원자 번호·전자 배치·특성이 나타나고 주기와 족의 규칙성을 확인합니다.", url: "" },
-  { id: 40,  grade: 2, subject: "화학", unit: "물질의 구성", title: "이온 형성과 이온 결합 시뮬레이션", icon: "🔗", desc: "양이온 and 음이온이 결합해 이온 화합물을 형성하는 과정을 전자 이동으로 시각화합니다.", url: "" },
+  { id: 40,  grade: 2, subject: "화학", unit: "물질의 구성", title: "이온 형성과 이온 결합 시뮬레이션", icon: "🔗", desc: "양이온과 음이온이 결합해 이온 화합물을 형성하는 과정을 전자 이동으로 시각화합니다.", url: "" },
   { id: 41,  grade: 2, subject: "화학", unit: "물질의 구성", title: "원소 불꽃 반응 색 맞추기", icon: "🎨", desc: "각 원소의 불꽃 반응 색을 이용해 미지 시료에 포함된 원소를 맞추는 실험 퀴즈입니다.", url: "" },
 
   // ─── 2학년 ─── 식물과 에너지
@@ -108,8 +115,8 @@ const SIMULATIONS = [
   // ─── 2학년 ─── 전기와 자기
   { id: 49,  grade: 2, subject: "물리", unit: "전기와 자기", title: "직렬·병렬 회로 구성 실험실", icon: "⚡", desc: "저항을 자유롭게 연결하고 전압·전류·저항을 측정해 옴의 법칙을 확인합니다.", url: "" },
   { id: 50,  grade: 2, subject: "물리", unit: "전기와 자기", title: "전류 주위의 자기장 시각화", icon: "🧲", desc: "직선 도선·원형 코일·솔레노이드 주변의 자기장 형태를 자기력선으로 확인합니다.", url: "" },
-  { id: 51,  grade: 2, subject: "물리", unit: "전기와 자기", title: "전자기 유도 시뮬레이션", icon: "🔄", desc: "자석을 코일에 넣고 빼며 유도 전류의 방향(렌츠의 법칙)을 직접 확인합니다.", url: "" },
-  { id: 52,  grade: 2, subject: "물리", unit: "전기와 자기", title: "전기 에너지와 소비 전력 계산기", icon: "💡", desc: "가전기기의 소비 전력과 사용 시간으로 전기 에너지와 전기 요금을 계산합니다.", url: "" },
+  { id: 51,  grade: 2, subject: "물리", unit: "전자기 유도 시뮬레이션", icon: "🔄", desc: "자석을 코일에 넣고 빼며 유도 전류의 방향(렌츠의 법칙)을 직접 확인합니다.", url: "" },
+  { id: 52,  grade: 2, subject: "물리", unit: "전기 에너지와 소비 전력 계산기", icon: "💡", desc: "가전기기의 소비 전력과 사용 시간으로 전기 에너지와 전기 요금을 계산합니다.", url: "" },
 
   // ─── 2학년 ─── 별과 우주 (2학년)
   { id: 53,  grade: 2, subject: "지구과학", unit: "별과 우주", title: "별의 밝기와 등급 체계", icon: "⭐", desc: "겉보기 등급과 절대 등급의 차이를 거리와 함께 탐구하고 등급 계산을 연습합니다.", url: "" },
@@ -289,7 +296,7 @@ function ScienceDashboard() {
             </div>
           </div>
 
-          {/* 과목별 메뉴 */}
+          {/* 과목별 사이드 메뉴 */}
           {viewMode === "subject" && (
             <div style={{ paddingTop:18 }}>
               <div className="desktop-sb-title" style={{ padding:"0 18px", fontSize:10, color:"#64748B", fontWeight:700, letterSpacing:"0.1em", marginBottom:10, textTransform:"uppercase" }}>과목</div>
@@ -322,7 +329,7 @@ function ScienceDashboard() {
             </div>
           )}
 
-          {/* 학년별 메뉴 */}
+          {/* 학년별 사이드 메뉴 */}
           {viewMode === "grade" && (
             <div style={{ paddingTop:18 }}>
               <div className="desktop-sb-title" style={{ padding:"0 18px", fontSize:10, color:"#64748B", fontWeight:700, letterSpacing:"0.1em", marginBottom:10, textTransform:"uppercase" }}>학년</div>
@@ -375,34 +382,56 @@ function ScienceDashboard() {
         {/* ── Main Content Area ── */}
         <main style={{ flex:1, padding:"32px 36px", overflow:"auto" }}>
 
-          {/* ── 과목별 대시보드 홈 ── */}
-          {viewMode==="subject" && !selectedSubject && !search && (
+          {/* ── [개편] 과목별 대시보드 홈 (2x2 정사각형 그리드) ── */}
+          {viewMode === "subject" && !selectedSubject && !search && (
             <>
-              <div style={{ marginBottom:28 }}>
-                <div className="desktop-main-title" style={{ fontWeight:800, fontSize:22, marginBottom:6, color:"#FFFFFF" }}>과목별 탐색</div>
-                <div className="desktop-main-desc" style={{ fontSize:13.5, color:"#94A3B8" }}>과목 카드를 클릭하면 해당 과목의 모든 시뮬레이션이 나타납니다.</div>
+              <div style={{ marginBottom: 32 }}>
+                <div className="desktop-main-title" style={{ fontWeight: 800, fontSize: 26, marginBottom: 8, color: "#FFFFFF", letterSpacing: "-0.5px" }}>과목별 탐색</div>
+                <div className="desktop-main-desc" style={{ fontSize: 14.5, color: "#64748B" }}>원하는 과목 카드를 선택하여 가상 실험실에 입장하세요.</div>
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(400px, 1fr))", gap:20, marginBottom:32 }}>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "24px", maxWidth: "1200px", marginBottom: "32px" }}>
                 {SUBJECTS.map(subj => {
                   const m = SUBJECT_META[subj];
-                  const cnt = SIMULATIONS.filter(s=>s.subject===subj).length;
-                  const unitList = [...new Set(SIMULATIONS.filter(s=>s.subject===subj).map(s=>s.unit))];
+                  const cnt = SIMULATIONS.filter(s => s.subject === subj).length;
+                  const unitList = [...new Set(SIMULATIONS.filter(s => s.subject === subj).map(s => s.unit))];
                   return (
                     <button key={subj} onClick={() => setSelectedSubject(subj)}
-                      onMouseEnter={e => { e.currentTarget.style.transform="translateY(-4px)"; e.currentTarget.style.boxShadow=`0 12px 36px ${m.color}25`; }}
-                      onMouseLeave={e => { e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}
-                      style={{ background:`linear-gradient(135deg,${m.bg},#090F1C)`, border:`1px solid ${m.color}55`, borderRadius:16, padding:"28px 24px", cursor:"pointer", textAlign:"left", transition:"all 0.18s" }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
-                        <div style={{ width:54, height:54, borderRadius:14, background:`${m.color}22`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:28 }}>{m.emoji}</div>
+                      onMouseEnter={e => { 
+                        e.currentTarget.style.transform = "translateY(-6px)"; 
+                        e.currentTarget.style.borderColor = m.color;
+                        e.currentTarget.style.boxShadow = `0 20px 40px ${m.color}20, inset 0 0 20px ${m.color}10`; 
+                      }}
+                      onMouseLeave={e => { 
+                        e.currentTarget.style.transform = "none"; 
+                        e.currentTarget.style.borderColor = `${m.color}33`;
+                        e.currentTarget.style.boxShadow = "none"; 
+                      }}
+                      style={{ 
+                        background: `linear-gradient(135deg, ${m.bg}CC, #090F1C)`, 
+                        border: `1px solid ${m.color}33`, 
+                        borderRadius: "20px", padding: "36px", cursor: "pointer", textAlign: "left", transition: "all 0.25s ease-out",
+                        display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: "280px"
+                      }}>
+                      
+                      <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+                        <div style={{ 
+                          width: "64px", height: "64px", borderRadius: "16px", background: `${m.color}15`, border: `1px solid ${m.color}33`,
+                          display: "flex", alignItems: "center", justifyCenter: "center", justifyContent: "center", fontSize: "32px" 
+                        }}>{m.emoji}</div>
                         <div>
-                          <div style={{ fontWeight:800, fontSize:20, color:m.light }}>{subj}</div>
-                          <div style={{ fontSize:12.5, color:"#64748B", marginTop:2 }}>시뮬레이션 {cnt}개</div>
+                          <div style={{ fontWeight: 800, fontSize: "24px", color: "#FFFFFF", marginBottom: "4px" }}>{subj}</div>
+                          <div style={{ fontSize: "14px", color: m.light, fontWeight: 600 }}>총 {cnt}개 가상실험</div>
                         </div>
                       </div>
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                        {unitList.map(u => (
-                          <span key={u} style={{ background:`${m.color}22`, color:m.light, border:`1px solid ${m.color}33`, borderRadius:6, padding:"3px 10px", fontSize:11.5, fontWeight:600 }}>{u}</span>
-                        ))}
+
+                      <div style={{ marginTop: "24px" }}>
+                        <div style={{ fontSize: "11px", color: "#475569", fontWeight: 700, letterSpacing: "0.05em", marginBottom: "10px", textTransform: "uppercase" }}>주요 탐색 단원</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                          {unitList.map(u => (
+                            <span key={u} style={{ background: "#0F172A", color: "#94A3B8", border: "1px solid #1E293B", borderRadius: "8px", padding: "5px 12px", fontSize: "12.5px", fontWeight: 500 }}>{u}</span>
+                          ))}
+                        </div>
                       </div>
                     </button>
                   );
@@ -411,38 +440,73 @@ function ScienceDashboard() {
             </>
           )}
 
-          {/* ── 학년별 대시보드 홈 ── */}
-          {viewMode==="grade" && !selectedGrade && !search && (
+          {/* ── [개편] 학년별 대시보드 홈 (테이블형 단원 행 리스트) ── */}
+          {viewMode === "grade" && !selectedGrade && !search && (
             <>
-              <div style={{ marginBottom:28 }}>
-                <div className="desktop-main-title" style={{ fontWeight:800, fontSize:22, marginBottom:6, color:"#FFFFFF" }}>학년별 탐색</div>
-                <div className="desktop-main-desc" style={{ fontSize:13.5, color:"#94A3B8" }}>학년 카드를 선택한 뒤 단원을 골라 시뮬레이션을 찾으세요.</div>
+              <div style={{ marginBottom: 32 }}>
+                <div className="desktop-main-title" style={{ fontWeight: 800, fontSize: 26, marginBottom: 8, color: "#FFFFFF", letterSpacing: "-0.5px" }}>학년별 탐색</div>
+                <div className="desktop-main-desc" style={{ fontSize: 14.5, color: "#64748B" }}>학년별 교육과정 단원을 확인하고 원하는 시뮬레이션을 탐색하세요.</div>
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(320px, 1fr))", gap:20 }}>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px", maxWidth: "1400px", alignItems: "start" }}>
                 {GRADES.map(g => {
-                  const sims = SIMULATIONS.filter(s=>s.grade===g);
+                  const sims = SIMULATIONS.filter(s => s.grade === g);
                   const units = GRADE_UNITS[g];
                   return (
                     <button key={g} onClick={() => { setSelectedGrade(g); setSelectedUnit(null); }}
-                      onMouseEnter={e => { e.currentTarget.style.transform="translateY(-4px)"; e.currentTarget.style.boxShadow="0 12px 36px #3B82F620"; }}
-                      onMouseLeave={e => { e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}
-                      style={{ background:"linear-gradient(135deg,#0C1929,#090F1C)", border:"1px solid #1E40AF66", borderRadius:16, padding:"26px 22px", cursor:"pointer", textAlign:"left", transition:"all 0.18s" }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:18 }}>
-                        <div style={{ width:54, height:54, borderRadius:14, background:"#0F2A4A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28 }}>🎓</div>
+                      onMouseEnter={e => { 
+                        e.currentTarget.style.transform = "translateY(-6px)"; 
+                        e.currentTarget.style.borderColor = "#38BDF8";
+                        e.currentTarget.style.boxShadow = "0 20px 40px rgba(56, 189, 248, 0.15)"; 
+                      }}
+                      onMouseLeave={e => { 
+                        e.currentTarget.style.transform = "none"; 
+                        e.currentTarget.style.borderColor = "#1E40AF66";
+                        e.currentTarget.style.boxShadow = "none"; 
+                      }}
+                      style={{ 
+                        background: "linear-gradient(135deg, #0C1929, #090F1C)", border: "1px solid #1E40AF66", borderRadius: "20px", 
+                        padding: "28px 24px", cursor: "pointer", textAlign: "left", transition: "all 0.25s ease-out",
+                        display: "flex", flexDirection: "column", width: "100%"
+                      }}>
+                      
+                      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px", width: "100%" }}>
+                        <div style={{ 
+                          width: "56px", height: "56px", borderRadius: "14px", background: "#0F2A4A", border: "1px solid #1E40AF88",
+                          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px" 
+                        }}>🎓</div>
                         <div>
-                          <div style={{ fontWeight:800, fontSize:20, color:"#38BDF8" }}>{g}학년</div>
-                          <div style={{ fontSize:12.5, color:"#64748B", marginTop:2 }}>{sims.length}개 시뮬레이션</div>
+                          <div style={{ fontWeight: 800, fontSize: "22px", color: "#38BDF8" }}>{g}학년</div>
+                          <div style={{ fontSize: "13.5px", color: "#64748B", marginTop: "2px" }}>시뮬레이션 {sims.length}개 제공</div>
                         </div>
                       </div>
-                      <div style={{ display:"flex", flexDirection:"column", gap:8, borderTop:"1px solid #1E293B", paddingTop:14 }}>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%", borderTop: "1px solid #1E293B", paddingTop: "16px" }}>
                         {units.map(u => {
                           const subj = UNIT_SUBJECT[u];
                           const um = SUBJECT_META[subj];
-                          const ucnt = SIMULATIONS.filter(s=>s.grade===g&&s.unit===u).length;
+                          const ucnt = SIMULATIONS.filter(s => s.grade === g && s.unit === u).length;
                           return (
-                            <div key={u} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                              <span style={{ fontSize:13, color:"#94A3B8", display:"flex", alignItems:"center", gap:4 }}><span>{um.emoji}</span> {u}</span>
-                              <span style={{ fontSize:11.5, color:um.light, fontWeight:700 }}>{ucnt}</span>
+                            <div key={u} style={{ 
+                              display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0F172A44",
+                              padding: "8px 12px", borderRadius: "10px", border: "1px solid transparent", transition: "background 0.2s"
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = "#0F172A"; e.currentTarget.style.borderColor = `${um.color}22`; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = "#0F172A44"; e.currentTarget.style.borderColor = "transparent"; }}
+                            >
+                              <span style={{ 
+                                fontSize: "13.5px", color: "#CBD5E1", display: "flex", alignItems: "center", gap: "8px",
+                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                              }}>
+                                <span style={{ width: "4px", height: "12px", background: um.color, borderRadius: "2px" }} />
+                                <span style={{ opacity: 0.9 }}>{um.emoji}</span>
+                                <span>{u}</span>
+                              </span>
+                              
+                              <span style={{ 
+                                fontSize: "12px", color: um.light, background: `${um.color}18`, border: `1px solid ${um.color}33`,
+                                padding: "2px 8px", borderRadius: "6px", fontWeight: 700, minWidth: "28px", textAlign: "center"
+                              }}>{ucnt}</span>
                             </div>
                           );
                         })}
@@ -454,7 +518,7 @@ function ScienceDashboard() {
             </>
           )}
 
-          {/* ── 상단 필터 컨텍스트 바 ── */}
+          {/* ── 선택된 필터 상단 컨텍스트 바 ── */}
           {showCards && (
             <div style={{ marginBottom:24 }}>
               {viewMode==="subject" && meta && (
@@ -488,7 +552,7 @@ function ScienceDashboard() {
             </div>
           )}
 
-          {/* ── 메인 카드 그리드 배치 리스트 ── */}
+          {/* ── 리스트 선택 시 매칭 시뮬레이션 카드 그리드 리스트 ── */}
           {showCards && (
             <>
               {filtered.length === 0 ? (
@@ -498,7 +562,6 @@ function ScienceDashboard() {
                   <div style={{ fontSize:14, marginTop:8 }}>다른 과목·학년·단원을 탐색하거나 키워드를 변경해 보세요.</div>
                 </div>
               ) : (
-                /* 학년별 모드 단위 대그룹화 단원 타이틀 바 조절 */
                 viewMode==="grade" && selectedGrade && !selectedUnit ? (
                   GRADE_UNITS[selectedGrade].map(unit => {
                     const unitSims = filtered.filter(s=>s.unit===unit);
@@ -520,7 +583,6 @@ function ScienceDashboard() {
                     );
                   })
                 ) : (
-                  /* 그 외 플랫 그리드형 */
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16 }}>
                     {filtered.map(sim => <SimCard key={sim.id} sim={sim}/>)}
                   </div>
@@ -531,7 +593,7 @@ function ScienceDashboard() {
         </main>
       </div>
 
-      {/* ── 안내 모달 팝업 스케일 강화 ── */}
+      {/* ── 안내 모달 팝업 ── */}
       {openSim && (() => {
         const m = SUBJECT_META[openSim.subject];
         return (
@@ -552,7 +614,7 @@ function ScienceDashboard() {
                   id <strong style={{ color:m.light }}>{openSim.id}</strong>번 항목의 <code style={{ background:"#1E293B", padding:"2px 8px", borderRadius:4, color:"#F1F5F9" }}>url</code> 필드에 경로를 입력하세요
                 </div>
               </div>
-              <button onClick={() => setOpenSim(null)} style={{ width:"100%", padding:"13px", background:"#1E293B", border:"1px solid #475569", borderRadius:10, color:"#FFFFFF", cursor:"pointer", fontSize:15, fontWeight:700, transition:"background 0.2s" }} onMouseEnter={e=>e.currentTarget.style.background="#334155"} onMouseLeave={e=>e.currentTarget.style.background="#1E293B"}>닫기</button>
+              <button onClick={() => setOpenSim(null)} style={{ width:"100%", padding:"13px", background:"#1E293B", border:"1px solid #475569", borderRadius:10, color:"FFFFFF", cursor:"pointer", fontSize:15, fontWeight:700, transition:"background 0.2s" }} onMouseEnter={e=>e.currentTarget.style.background="#334155"} onMouseLeave={e=>e.currentTarget.style.background="#1E293B"}>닫기</button>
             </div>
           </div>
         );
