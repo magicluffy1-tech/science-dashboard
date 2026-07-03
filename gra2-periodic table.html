@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주기율표 인터랙티브 탐색기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #eef2f0;
+    --bg-line: #dfe6e2;
+    --panel: #ffffff;
+    --ink: #1b2430;
+    --ink-soft: #5a6572;
+    --accent: #2c6e63;
+    --accent-2: #c98a2c;
+    --line: #c7d0cb;
+
+    --c-alkali: #d65f5f;
+    --c-alkaline: #e0a458;
+    --c-transition: #5b7db1;
+    --c-post: #7a9e7e;
+    --c-metalloid: #9c7bb0;
+    --c-nonmetal: #4e9a8e;
+    --c-halogen: #d4a537;
+    --c-noble: #6e6e9e;
+    --c-lan: #c97ba0;
+    --c-act: #8e7355;
+    --c-unknown: #9aa3ab;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      linear-gradient(var(--bg-line) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--bg-line) 1px, transparent 1px) 0 0/28px 28px,
+      var(--bg);
+    color:var(--ink);
+    font-family:'Noto Sans KR', sans-serif;
+    min-height:100vh;
+    padding: 20px 16px 60px;
+  }
+
+  .wrap{max-width:1400px;margin:0 auto;}
+
+  header{margin-bottom:22px;}
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    color:var(--accent);
+    text-transform:uppercase;
+    margin-bottom:6px;
+  }
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:clamp(24px, 4vw, 36px);
+    margin:0 0 6px;
+    letter-spacing:-0.01em;
+  }
+  .subtitle{color:var(--ink-soft); font-size:14px; max-width:640px; line-height:1.6;}
+
+  .toolbar{
+    display:flex; flex-wrap:wrap; gap:8px;
+    margin: 18px 0 20px;
+    align-items:center;
+  }
+  .search{
+    font-family:'Noto Sans KR', sans-serif;
+    font-size:13px;
+    padding:8px 12px;
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    background:var(--panel);
+    color:var(--ink);
+    width: 180px;
+    outline:none;
+  }
+  .search:focus{border-color:var(--accent);}
+
+  .chip{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    padding:7px 12px;
+    border-radius:999px;
+    border:1.5px solid var(--line);
+    background:var(--panel);
+    color:var(--ink-soft);
+    cursor:pointer;
+    display:flex; align-items:center; gap:6px;
+    transition: all .15s ease;
+    user-select:none;
+  }
+  .chip:hover{border-color:var(--ink-soft); color:var(--ink);}
+  .chip.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .chip .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+
+  .layout{
+    display:grid;
+    grid-template-columns: 1fr 340px;
+    gap: 22px;
+    align-items:start;
+  }
+  @media (max-width: 980px){
+    .layout{grid-template-columns:1fr;}
+  }
+
+  .table-scroll{
+    overflow-x:auto;
+    padding-bottom: 6px;
+  }
+
+  .ptable{
+    display:grid;
+    grid-template-columns: repeat(18, minmax(40px, 1fr));
+    grid-auto-rows: minmax(40px, auto);
+    gap:3px;
+    min-width: 900px;
+  }
+
+  .cell{
+    position:relative;
+    border-radius:6px;
+    background:var(--panel);
+    border:1.5px solid var(--line);
+    padding:3px 4px;
+    cursor:pointer;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    transition: transform .12s ease, box-shadow .12s ease, opacity .15s ease;
+    overflow:hidden;
+  }
+  .cell:hover{ transform: translateY(-2px); box-shadow: 0 4px 10px rgba(27,36,48,.12); z-index:3;}
+  .cell.selected{ outline:2.5px solid var(--ink); outline-offset:-2px; z-index:4;}
+  .cell.dim{ opacity:.22; }
+  .cell.row-hi, .cell.col-hi{ box-shadow: inset 0 0 0 2px var(--accent-2); }
+  .cell.row-sel, .cell.col-sel{ box-shadow: inset 0 0 0 2.5px var(--accent), 0 2px 6px rgba(44,110,99,.25); }
+  .cell.row-sel.col-sel{ box-shadow: inset 0 0 0 3px var(--accent), 0 2px 8px rgba(44,110,99,.35); }
+  .ph.row-sel, .ph.col-sel{ box-shadow: none; border-color: var(--accent); }
+
+  .cell .z{ font-family:'IBM Plex Mono', monospace; font-size:9px; color:rgba(0,0,0,.55); line-height:1;}
+  .cell .sym{ font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:15px; line-height:1.1; color:#fff; text-shadow: 0 1px 1px rgba(0,0,0,.15);}
+  .cell .kr{ font-size:8.5px; color:rgba(255,255,255,.92); line-height:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+  .ph{
+    background:repeating-linear-gradient(135deg, #f4f6f5, #f4f6f5 6px, #eaeeec 6px, #eaeeec 12px);
+    border-style:dashed;
+    color:var(--ink-soft);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    cursor:default;
+  }
+  .ph:hover{ transform:none; box-shadow:none;}
+
+  .legend{
+    display:flex; flex-wrap:wrap; gap:7px; margin-top:16px;
+  }
+
+  .category-info{
+    display:none;
+    background:var(--panel);
+    border:1.5px solid var(--line);
+    border-left:4px solid var(--ink);
+    border-radius:8px;
+    padding:13px 16px;
+    margin: -6px 0 18px;
+    font-size:13px;
+    line-height:1.7;
+    color:var(--ink-soft);
+  }
+  .category-info.show{ display:flex; align-items:flex-start; gap:10px; }
+  .category-info .ci-dot{ width:12px; height:12px; border-radius:50%; flex:none; margin-top:4px; }
+  .category-info b{ color:var(--ink); }
+
+  /* category colors on cells */
+  .cat-alkali-metal{background:var(--c-alkali);}
+  .cat-alkaline-earth{background:var(--c-alkaline);}
+  .cat-transition-metal{background:var(--c-transition);}
+  .cat-post-transition{background:var(--c-post);}
+  .cat-metalloid{background:var(--c-metalloid);}
+  .cat-nonmetal{background:var(--c-nonmetal);}
+  .cat-halogen{background:var(--c-halogen);}
+  .cat-noble-gas{background:var(--c-noble);}
+  .cat-lanthanide{background:var(--c-lan);}
+  .cat-actinide{background:var(--c-act);}
+  .cat-unknown{background:var(--c-unknown);}
+
+  /* ---- detail panel ---- */
+  .panel, .card{
+    background:var(--panel);
+    border:1.5px solid var(--line);
+    border-radius:14px;
+    padding:22px;
+  }
+  .panel{
+    position:sticky;
+    top:18px;
+    min-height: 420px;
+  }
+  .panel-empty{
+    color:var(--ink-soft);
+    font-size:14px;
+    line-height:1.8;
+    text-align:center;
+    padding: 60px 10px;
+  }
+  .panel-empty .big{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:44px;
+    color:var(--line);
+    margin-bottom:10px;
+  }
+
+  .panel-head{ display:flex; align-items:center; gap:14px; margin-bottom:14px;}
+  .panel-sym{
+    width:64px;height:64px;border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:28px; color:#fff;
+    flex:none;
+  }
+  .panel-title .name-kr{ font-size:19px; font-weight:700;}
+  .panel-title .name-en{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft);}
+
+  .stat-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:10px;
+    margin: 16px 0;
+  }
+  .stat{
+    background:var(--bg);
+    border-radius:8px;
+    padding:9px 11px;
+  }
+  .stat .label{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.06em;}
+  .stat .value{ font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:16px; margin-top:2px;}
+
+  .cat-tag{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:#fff;
+    padding:4px 9px;
+    border-radius:999px;
+    margin-bottom: 14px;
+  }
+
+  .bohr-box{
+    background:var(--bg);
+    border-radius:10px;
+    padding:10px;
+    display:flex;
+    justify-content:center;
+    margin: 6px 0 14px;
+  }
+  .bohr-note{
+    font-size:12px; color:var(--ink-soft); line-height:1.6; text-align:center; padding: 8px 4px;
+  }
+
+  .rule-box{
+    background:#f3f6f4;
+    border-left:3px solid var(--accent);
+    padding:10px 12px;
+    border-radius:4px;
+    font-size:12.5px;
+    line-height:1.7;
+    color:#33403a;
+  }
+
+  .hi-note{
+    font-size:11.5px; color:var(--ink-soft); margin: -10px 0 14px;
+    display:flex; align-items:center; gap:4px;
+  }
+
+  .shell-formula{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    text-align:center;
+    color:var(--ink-soft);
+    margin-top: 4px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){
+    .orbit-group{ animation: none !important; }
+  }
+
+  footer{
+    margin-top:28px;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    text-align:center;
+  }
+
+  /* ---- tabs ---- */
+  .tabnav{ display:flex; gap:8px; margin-bottom:22px; flex-wrap:wrap; }
+  .tab-btn{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size:14px;
+    padding:10px 18px;
+    border-radius:10px;
+    border:1.5px solid var(--line);
+    background:var(--panel);
+    color:var(--ink-soft);
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .tab-btn:hover{ border-color:var(--accent); color:var(--ink); }
+  .tab-btn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  /* ---- 원자 제작소 ---- */
+  .builder-layout{
+    display:grid; grid-template-columns: 1fr 340px; gap:22px; align-items:start;
+  }
+  @media (max-width: 900px){ .builder-layout{ grid-template-columns:1fr; } }
+
+  .builder-stage{ min-height:440px; display:flex; flex-direction:column; align-items:center; padding:26px; }
+  .builder-readout{ text-align:center; margin-bottom:6px; }
+  .ro-name{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:26px; }
+  .ro-sym{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--ink-soft); margin-top:2px; }
+  .charge-badge{
+    display:inline-block; margin-top:10px; padding:5px 14px; border-radius:999px;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500;
+    background:var(--bg); color:var(--ink-soft);
+  }
+  .charge-badge.neutral{ background:#e4f2ee; color:var(--accent); }
+  .charge-badge.positive{ background:#fbeaea; color:var(--c-alkali); }
+  .charge-badge.negative{ background:#eaf0fb; color:var(--c-transition); }
+  .atom-canvas{ margin-top:14px; }
+
+  .builder-controls{ display:flex; flex-direction:column; gap:16px; }
+  .ctrl-group{ background:var(--bg); border-radius:10px; padding:12px 14px; }
+  .ctrl-head{ display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:500; }
+  .ctrl-dot{ width:10px; height:10px; border-radius:50%; flex:none; }
+  .ctrl-count{ margin-left:auto; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; }
+  .ctrl-btns{ display:flex; gap:8px; margin-top:10px; }
+  .ctrl-btn{
+    flex:1; font-family:'Space Grotesk',sans-serif; font-size:20px; font-weight:700;
+    border-radius:8px; border:1.5px solid var(--line); background:#fff; cursor:pointer;
+    padding:6px 0; transition: all .12s ease;
+  }
+  .ctrl-btn:hover{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .ctrl-btn:active{ transform:scale(.94); }
+
+  .advanced-toggle{ font-size:12.5px; color:var(--ink-soft); display:flex; align-items:center; gap:7px; cursor:pointer; }
+  .mass-readout{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); margin-top:8px; }
+
+  .reset-btn{
+    font-family:'Noto Sans KR',sans-serif; font-size:13px; padding:9px; border-radius:8px;
+    border:1.5px solid var(--line); background:#fff; color:var(--ink-soft); cursor:pointer;
+  }
+  .reset-btn:hover{ border-color:var(--ink-soft); color:var(--ink); }
+
+  .mission-box{ background: linear-gradient(135deg,#fff6e8,#fdefe0); border:1.5px solid var(--accent-2); border-radius:10px; padding:14px; }
+  .mission-title{ font-weight:700; font-size:13px; margin-bottom:6px; }
+  .mission-text{ font-size:13px; line-height:1.6; color:#5a4a2a; margin-bottom:10px; }
+  .mission-btn{
+    width:100%; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13px;
+    padding:9px; border-radius:8px; border:none; background:var(--accent-2); color:#fff; cursor:pointer;
+  }
+  .mission-btn:hover{ opacity:.9; }
+  .mission-text.success{ color:var(--accent); font-weight:700; }
+
+  /* ---- 방탈출 ---- */
+  .escape-topbar{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; padding:14px 18px; margin-bottom:0; }
+  .escape-stat{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--ink-soft); }
+  .escape-stat span{ color:var(--ink); font-weight:600; }
+  .hint-btn, .escape-topbar .reset-btn{ margin-left:auto; }
+  .hint-btn{
+    font-family:'Noto Sans KR',sans-serif; font-size:13px; padding:9px 14px; border-radius:8px;
+    border:1.5px solid var(--accent-2); background:#fff; color:var(--accent-2); cursor:pointer;
+  }
+  .hint-btn:hover{ background:var(--accent-2); color:#fff; }
+  .hint-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .escape-layout{ display:grid; grid-template-columns: 1fr 260px; gap:20px; align-items:start; }
+  @media (max-width: 900px){ .escape-layout{ grid-template-columns:1fr; } }
+
+  .escape-grid-wrap{ padding:18px; overflow-x:auto; }
+  .escape-grid{
+    display:grid;
+    grid-template-columns: repeat(8, minmax(52px,1fr));
+    grid-template-rows: repeat(4, 62px);
+    gap:5px;
+    min-width:520px;
+  }
+  .egcell{
+    border-radius:8px; border:2px dashed var(--line); background:var(--bg);
+    display:flex; align-items:center; justify-content:center; flex-direction:column;
+    font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-soft);
+    cursor:pointer; transition: all .12s ease; position:relative;
+  }
+  .egcell.unused{ border:none; background:transparent; cursor:default; }
+  .egcell.targetable:hover{ border-color:var(--accent-2); background:#fff6e8; }
+  .egcell .glabel{ position:absolute; top:2px; left:4px; font-size:8px; opacity:.55; }
+  .egcell.filled{ border-style:solid; border-color:transparent; padding:0; overflow:hidden; }
+  .egcell.filled .placed-card{ width:100%; height:100%; border-radius:6px; cursor:pointer; }
+  .egcell.wrong-flash{ animation: shake .35s ease; border-color:var(--c-alkali) !important; background:#fbeaea !important; }
+  .egcell.right-flash{ animation: pop .35s ease; }
+  @keyframes shake{ 0%,100%{transform:translateX(0);} 25%{transform:translateX(-4px);} 75%{transform:translateX(4px);} }
+  @keyframes pop{ 0%{transform:scale(1);} 50%{transform:scale(1.12);} 100%{transform:scale(1);} }
+
+  .kr-reward{
+    position:absolute; left:50%; top:-6px; transform:translate(-50%,-50%) scale(.6);
+    background:var(--ink); color:#fff; padding:5px 12px; border-radius:999px;
+    font-family:'Noto Sans KR',sans-serif; font-weight:700; font-size:12.5px;
+    white-space:nowrap; pointer-events:none; z-index:10; opacity:0;
+    animation: krPop 1.3s ease forwards;
+  }
+  @keyframes krPop{
+    0%{ opacity:0; transform:translate(-50%,10%) scale(.6); }
+    18%{ opacity:1; transform:translate(-50%,-70%) scale(1.08); }
+    30%{ transform:translate(-50%,-70%) scale(1); }
+    78%{ opacity:1; }
+    100%{ opacity:0; transform:translate(-50%,-140%) scale(.92); }
+  }
+
+  .escape-tray-wrap{ padding:16px; }
+  .tray-title{ font-size:12px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; margin-bottom:10px; text-transform:uppercase; letter-spacing:.06em; }
+
+  .mode-toggle{ display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .mode-btn{
+    font-family:'Noto Sans KR',sans-serif; font-size:11.5px; padding:6px 10px; border-radius:999px;
+    border:1.5px solid var(--line); background:#fff; color:var(--ink-soft); cursor:pointer;
+  }
+  .mode-btn.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .mode-btn:hover:not(.active){ border-color:var(--accent); color:var(--accent); }
+  .escape-tray{ display:flex; flex-wrap:wrap; gap:7px; }
+  .ecard{
+    width:52px; min-height:52px; border-radius:8px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; cursor:pointer; color:#fff;
+    border:2px solid transparent; transition: transform .12s ease; padding:4px 2px;
+  }
+  .ecard .sym{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; }
+  .ecard .z{ font-family:'IBM Plex Mono',monospace; font-size:9px; opacity:.85; }
+  .ecard .kr{ font-size:9.5px; font-weight:500; opacity:.95; margin-top:1px; text-align:center; line-height:1.2; }
+  .ecard.mode-korean{ width:64px; }
+  .ecard.mode-korean .kr{ font-size:12.5px; font-weight:700; margin-top:0; }
+  .ecard:hover{ transform:translateY(-2px); }
+  .ecard.selected{ border-color:var(--ink); box-shadow:0 0 0 3px rgba(27,36,48,.15); }
+  .ecard.placed{ display:none; }
+
+  /* ---- 모달 (성질 팝업 / 완료 화면) ---- */
+  .modal-backdrop{
+    display:none; position:fixed; inset:0; background:rgba(20,26,32,.55);
+    align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  .modal-backdrop.show{ display:flex; }
+  .popup-card{
+    background:#fff; border-radius:16px; padding:26px; max-width:380px; width:100%;
+    text-align:center; box-shadow:0 20px 50px rgba(0,0,0,.25);
+  }
+  .popup-card h3{ font-family:'Space Grotesk',sans-serif; margin: 4px 0 10px; }
+  .popup-card p{ font-size:13.5px; line-height:1.7; color:var(--ink-soft); }
+  .popup-anim{ display:flex; justify-content:center; margin:8px 0; }
+  .popup-close{
+    margin-top:14px; padding:9px 20px; border-radius:8px; border:none; background:var(--ink);
+    color:#fff; cursor:pointer; font-family:'Noto Sans KR',sans-serif; font-size:13px;
+  }
+  .win-card{ max-width:340px; }
+  .win-rank{ font-size:52px; margin:6px 0; }
+  .win-title{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:22px; margin-bottom:8px; }
+
+  @keyframes bubble{
+    0%{ transform:translateY(0); opacity:1; }
+    100%{ transform:translateY(-70px); opacity:0; }
+  }
+
+  /* ---- 주기율표의 역사 ---- */
+  .hist-intro{ padding:20px 22px; margin-bottom:18px; }
+  .hist-lead{ font-size:14px; line-height:1.8; color:var(--ink-soft); margin:0; }
+
+  .timeline{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px; align-items:start; }
+  @media (max-width:860px){ .timeline{ grid-template-columns:1fr; } }
+  .tl-item{ padding:20px 22px; position:relative; }
+  .tl-year{
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px;
+    color:#fff; background:var(--accent); display:inline-block; padding:4px 12px;
+    border-radius:999px; margin-bottom:10px;
+  }
+  .tl-item:nth-child(2) .tl-year{ background:var(--accent-2); }
+  .tl-body h3{ font-family:'Space Grotesk',sans-serif; margin:0 0 8px; font-size:17px; }
+  .tl-body p{ font-size:13px; line-height:1.75; color:var(--ink-soft); margin:0 0 10px; }
+  .tl-limit{ color:#9c5b2c !important; }
+  .tl-highlight{
+    display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:12px;
+    background:var(--bg); border:1px dashed var(--accent); color:var(--accent);
+    padding:7px 12px; border-radius:8px; cursor:pointer; margin-bottom:10px;
+  }
+  .tl-highlight:hover{ background:var(--accent); color:#fff; }
+
+  .anomaly-box{ padding:22px; }
+  .anomaly-box h3{ font-family:'Space Grotesk',sans-serif; margin:0 0 6px; font-size:16px; }
+  .hist-sub{ font-size:12.5px; color:var(--ink-soft); margin:0 0 14px; }
+  .sort-toggle{ display:flex; gap:8px; margin-bottom:18px; }
+  .sort-btn{
+    font-family:'Noto Sans KR',sans-serif; font-size:13px; padding:8px 16px; border-radius:8px;
+    border:1.5px solid var(--line); background:#fff; color:var(--ink-soft); cursor:pointer;
+  }
+  .sort-btn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .anomaly-row{ display:flex; gap:12px; flex-wrap:wrap; min-height:96px; }
+  .a-card{
+    width:82px; height:92px; border-radius:10px; color:#fff; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; transition: order .3s ease, transform .3s ease;
+  }
+  .a-card .sym{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; }
+  .a-card .z{ font-family:'IBM Plex Mono',monospace; font-size:10px; opacity:.85; }
+  .a-card .mass{ font-family:'IBM Plex Mono',monospace; font-size:10px; opacity:.85; margin-top:3px; }
+  .anomaly-msg{
+    margin-top:14px; padding:11px 14px; border-radius:8px; font-size:12.5px; line-height:1.7;
+  }
+  .anomaly-msg.ok{ background:#e4f2ee; color:var(--accent); }
+  .anomaly-msg.warn{ background:#fbeaea; color:#a34747; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">🧪 화학 · 2학년 · 물질의 구성</div>
+    <h1>주기율표 인터랙티브 탐색기</h1>
+    <p class="subtitle">관찰하고(탐색기) · 직접 만들어보고(원자 제작소) · 배운 걸 써먹어 보는(방탈출) 3단계 학습 도구입니다.</p>
+  </header>
+
+  <div class="tabnav">
+    <button class="tab-btn active" data-tab="explorer">🔎 주기율표 탐색기</button>
+    <button class="tab-btn" data-tab="builder">⚛️ 원자 제작소</button>
+    <button class="tab-btn" data-tab="escape">🚪 주기율표 방탈출</button>
+    <button class="tab-btn" data-tab="history">📜 주기율표의 역사</button>
+  </div>
+
+  <section class="tab-panel active" id="tab-explorer">
+  <div class="toolbar">
+    <input type="text" class="search" id="searchInput" placeholder="원소 이름 또는 기호 검색…">
+    <div class="chip active" data-cat="all"><span class="dot" style="background:var(--ink)"></span>전체</div>
+    <div class="chip" data-cat="alkali-metal"><span class="dot" style="background:var(--c-alkali)"></span>알칼리 금속</div>
+    <div class="chip" data-cat="alkaline-earth"><span class="dot" style="background:var(--c-alkaline)"></span>알칼리 토금속</div>
+    <div class="chip" data-cat="transition-metal"><span class="dot" style="background:var(--c-transition)"></span>전이 금속</div>
+    <div class="chip" data-cat="post-transition"><span class="dot" style="background:var(--c-post)"></span>전이후 금속</div>
+    <div class="chip" data-cat="metalloid"><span class="dot" style="background:var(--c-metalloid)"></span>준금속</div>
+    <div class="chip" data-cat="nonmetal"><span class="dot" style="background:var(--c-nonmetal)"></span>비금속</div>
+    <div class="chip" data-cat="halogen"><span class="dot" style="background:var(--c-halogen)"></span>할로젠</div>
+    <div class="chip" data-cat="noble-gas"><span class="dot" style="background:var(--c-noble)"></span>비활성 기체</div>
+    <div class="chip" data-cat="lanthanide"><span class="dot" style="background:var(--c-lan)"></span>란타넘족</div>
+    <div class="chip" data-cat="actinide"><span class="dot" style="background:var(--c-act)"></span>악티늄족</div>
+  </div>
+
+  <div class="category-info" id="categoryInfo"></div>
+
+  <div class="layout">
+    <div class="table-scroll">
+      <div class="ptable" id="ptable"></div>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="panel-empty">
+        <div class="big">?</div>
+        원소를 클릭해서<br>자세한 정보를 확인해 보세요.
+      </div>
+    </div>
+  </div>
+  </section>
+
+  <!-- ===================== 원자 제작소 ===================== -->
+  <section class="tab-panel" id="tab-builder">
+    <div class="builder-layout">
+      <div class="builder-stage card">
+        <div class="builder-readout">
+          <div class="ro-name" id="roName">?</div>
+          <div class="ro-sym" id="roSym">—</div>
+          <div class="charge-badge" id="chargeBadge">전하 0</div>
+        </div>
+        <div class="atom-canvas" id="atomCanvas"></div>
+      </div>
+
+      <div class="builder-controls card">
+        <div class="ctrl-group">
+          <div class="ctrl-head">
+            <span class="ctrl-dot" style="background:#d65f5f"></span>
+            양성자 (+)
+            <span class="ctrl-count" id="protonCount">0</span>
+          </div>
+          <div class="ctrl-btns">
+            <button class="ctrl-btn minus" id="protonMinus">−</button>
+            <button class="ctrl-btn plus" id="protonPlus">+</button>
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-head">
+            <span class="ctrl-dot" style="background:#2c6e63"></span>
+            전자 (−)
+            <span class="ctrl-count" id="electronCount">0</span>
+          </div>
+          <div class="ctrl-btns">
+            <button class="ctrl-btn minus" id="electronMinus">−</button>
+            <button class="ctrl-btn plus" id="electronPlus">+</button>
+          </div>
+        </div>
+
+        <label class="advanced-toggle">
+          <input type="checkbox" id="neutronToggle"> 심화: 중성자도 포함하기 (질량수 계산)
+        </label>
+
+        <div class="ctrl-group" id="neutronGroup" style="display:none;">
+          <div class="ctrl-head">
+            <span class="ctrl-dot" style="background:#9aa3ab"></span>
+            중성자
+            <span class="ctrl-count" id="neutronCount">0</span>
+          </div>
+          <div class="ctrl-btns">
+            <button class="ctrl-btn minus" id="neutronMinus">−</button>
+            <button class="ctrl-btn plus" id="neutronPlus">+</button>
+          </div>
+          <div class="mass-readout" id="massReadout">질량수: 0</div>
+        </div>
+
+        <button class="reset-btn" id="atomReset">↺ 초기화</button>
+
+        <div class="mission-box" id="missionBox">
+          <div class="mission-title">🎯 미션</div>
+          <div class="mission-text" id="missionText">버튼을 눌러 미션을 시작해 보세요!</div>
+          <button class="mission-btn" id="missionBtn">미션 시작</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 방탈출 ===================== -->
+  <section class="tab-panel" id="tab-escape">
+    <div class="escape-topbar card">
+      <div class="escape-stat">⏱ <span id="escTimer">00:00</span></div>
+      <div class="escape-stat">✅ <span id="escSolved">0</span>/20</div>
+      <div class="escape-stat">💡 힌트 <span id="escHints">3</span></div>
+      <div class="escape-stat">❌ 오답 <span id="escMiss">0</span></div>
+      <button class="hint-btn" id="hintBtn">💡 힌트 사용</button>
+      <button class="reset-btn" id="escReset">↺ 다시 시작</button>
+    </div>
+
+    <p class="subtitle" style="margin: 10px 0 16px;">카드를 눌러 선택한 뒤, 놓을 칸을 눌러보세요. 1~20번 원소와 대표족(1, 2, 13~18족)으로만 구성된 간이 주기율표입니다.</p>
+
+    <div class="escape-layout">
+      <div class="card escape-grid-wrap">
+        <div class="escape-grid" id="escapeGrid"></div>
+      </div>
+      <div class="card escape-tray-wrap">
+        <div class="tray-title">원소 카드</div>
+        <div class="mode-toggle">
+          <button class="mode-btn active" data-mode="symbol">기호만</button>
+          <button class="mode-btn" data-mode="korean">한글만</button>
+        </div>
+        <div class="escape-tray" id="escapeTray"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 주기율표의 역사 ===================== -->
+  <section class="tab-panel" id="tab-history">
+    <div class="hist-intro card">
+      <p class="hist-lead">주기율표는 화학자들의 <b>'컨닝 페이퍼'</b>이자, 세상 모든 물질의 구성 원리를 한눈에 보여주는 <b>'지하철 노선도'</b>와 같은 지도예요. 하지만 처음부터 지금 모습이었던 건 아닙니다. 두 과학자의 이야기를 따라가 볼까요?</p>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-item card">
+        <div class="tl-year">1869</div>
+        <div class="tl-body">
+          <h3>멘델레예프의 주기율표</h3>
+          <p>당시 알려진 63종의 원소를 <b>원자량(질량) 순서</b>로 나열해 최초의 현대적 주기율표를 만들었어요. 놀랍게도 그는 아직 발견되지 않은 원소의 자리를 <b>빈칸</b>으로 남겨두고, 그 원소의 성질까지 정확히 예측했어요 — 훗날 발견된 <b>저마늄(Ge)</b>이 바로 그 예측이 들어맞은 원소예요.</p>
+          <div class="tl-highlight" id="geHighlight">🔎 저마늄(Ge, 32번) 살펴보기 →</div>
+          <p class="tl-limit">⚠️ 하지만 원자량 순서로 배열하다 보니, 몇몇 원소는 자리가 맞지 않는 문제가 있었어요. 아래에서 직접 확인해 보세요.</p>
+        </div>
+      </div>
+
+      <div class="tl-item card">
+        <div class="tl-year">1913</div>
+        <div class="tl-body">
+          <h3>모즐리의 주기율표</h3>
+          <p>X선 연구를 통해 원자핵 속 <b>양성자수(원자 번호, Z)</b>를 알아냈고, 이를 기준으로 원소를 다시 배열해서 멘델레예프의 한계를 완전히 해결했어요. 이것이 오늘날 우리가 쓰는 표준 주기율표예요.</p>
+          <div class="tl-highlight" style="border-color:var(--accent-2); color:var(--accent-2);">Z = 원자 번호 = 양성자수</div>
+          <p class="tl-limit" style="color:var(--accent) !important;">✅ 이 방법 덕분에 원자량만으로는 자리가 꼬였던 아르곤·칼륨 같은 원소도 제자리를 찾았어요. 아래에서 직접 비교해 보세요.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="anomaly-box card">
+      <h3>⚖️ 원자량 순서 vs 원자 번호 순서 — 직접 비교해보기</h3>
+      <p class="hist-sub">염소(Cl)·아르곤(Ar)·칼륨(K)·칼슘(Ca), 네 원소를 정렬 기준을 바꿔가며 살펴보세요.</p>
+      <div class="sort-toggle">
+        <button class="sort-btn active" id="sortByNumber">원자 번호순</button>
+        <button class="sort-btn" id="sortByMass">원자량순</button>
+      </div>
+      <div class="anomaly-row" id="anomalyRow"></div>
+      <div class="anomaly-msg" id="anomalyMsg"></div>
+    </div>
+  </section>
+
+  <footer>2학년 과학 · 원자의 구성 단원 학습 자료 — 1~20번 원소는 보어 모형(전자껍질)을 함께 표시합니다.</footer>
+</div>
+
+<div class="modal-backdrop" id="popupBackdrop">
+  <div class="popup-card" id="popupCard"></div>
+</div>
+
+<div class="modal-backdrop" id="winBackdrop">
+  <div class="popup-card win-card" id="winCard"></div>
+</div>
+
+<script>
+// ---------- 데이터 ----------
+const RAW = `
+1,H,수소,Hydrogen,1.008
+2,He,헬륨,Helium,4.003
+3,Li,리튬,Lithium,6.94
+4,Be,베릴륨,Beryllium,9.012
+5,B,붕소,Boron,10.81
+6,C,탄소,Carbon,12.01
+7,N,질소,Nitrogen,14.01
+8,O,산소,Oxygen,16.00
+9,F,플루오린,Fluorine,19.00
+10,Ne,네온,Neon,20.18
+11,Na,소듐,Sodium,22.99
+12,Mg,마그네슘,Magnesium,24.31
+13,Al,알루미늄,Aluminium,26.98
+14,Si,규소,Silicon,28.09
+15,P,인,Phosphorus,30.97
+16,S,황,Sulfur,32.07
+17,Cl,염소,Chlorine,35.45
+18,Ar,아르곤,Argon,39.95
+19,K,포타슘,Potassium,39.10
+20,Ca,칼슘,Calcium,40.08
+21,Sc,스칸듐,Scandium,44.96
+22,Ti,타이타늄,Titanium,47.87
+23,V,바나듐,Vanadium,50.94
+24,Cr,크로뮴,Chromium,52.00
+25,Mn,망가니즈,Manganese,54.94
+26,Fe,철,Iron,55.85
+27,Co,코발트,Cobalt,58.93
+28,Ni,니켈,Nickel,58.69
+29,Cu,구리,Copper,63.55
+30,Zn,아연,Zinc,65.38
+31,Ga,갈륨,Gallium,69.72
+32,Ge,저마늄,Germanium,72.63
+33,As,비소,Arsenic,74.92
+34,Se,셀레늄,Selenium,78.97
+35,Br,브로민,Bromine,79.90
+36,Kr,크립톤,Krypton,83.80
+37,Rb,루비듐,Rubidium,85.47
+38,Sr,스트론튬,Strontium,87.62
+39,Y,이트륨,Yttrium,88.91
+40,Zr,지르코늄,Zirconium,91.22
+41,Nb,나이오븀,Niobium,92.91
+42,Mo,몰리브데넘,Molybdenum,95.95
+43,Tc,테크네튬,Technetium,98
+44,Ru,루테늄,Ruthenium,101.07
+45,Rh,로듐,Rhodium,102.91
+46,Pd,팔라듐,Palladium,106.42
+47,Ag,은,Silver,107.87
+48,Cd,카드뮴,Cadmium,112.41
+49,In,인듐,Indium,114.82
+50,Sn,주석,Tin,118.71
+51,Sb,안티모니,Antimony,121.76
+52,Te,텔루륨,Tellurium,127.60
+53,I,아이오딘,Iodine,126.90
+54,Xe,제논,Xenon,131.29
+55,Cs,세슘,Caesium,132.91
+56,Ba,바륨,Barium,137.33
+57,La,란타넘,Lanthanum,138.91
+58,Ce,세륨,Cerium,140.12
+59,Pr,프라세오디뮴,Praseodymium,140.91
+60,Nd,네오디뮴,Neodymium,144.24
+61,Pm,프로메튬,Promethium,145
+62,Sm,사마륨,Samarium,150.36
+63,Eu,유로퓸,Europium,151.96
+64,Gd,가돌리늄,Gadolinium,157.25
+65,Tb,터븀,Terbium,158.93
+66,Dy,디스프로슘,Dysprosium,162.50
+67,Ho,홀뮴,Holmium,164.93
+68,Er,어븀,Erbium,167.26
+69,Tm,툴륨,Thulium,168.93
+70,Yb,이터븀,Ytterbium,173.05
+71,Lu,루테튬,Lutetium,174.97
+72,Hf,하프늄,Hafnium,178.49
+73,Ta,탄탈럼,Tantalum,180.95
+74,W,텅스텐,Tungsten,183.84
+75,Re,레늄,Rhenium,186.21
+76,Os,오스뮴,Osmium,190.23
+77,Ir,이리듐,Iridium,192.22
+78,Pt,백금,Platinum,195.08
+79,Au,금,Gold,196.97
+80,Hg,수은,Mercury,200.59
+81,Tl,탈륨,Thallium,204.38
+82,Pb,납,Lead,207.2
+83,Bi,비스무트,Bismuth,208.98
+84,Po,폴로늄,Polonium,209
+85,At,아스타틴,Astatine,210
+86,Rn,라돈,Radon,222
+87,Fr,프랑슘,Francium,223
+88,Ra,라듐,Radium,226
+89,Ac,악티늄,Actinium,227
+90,Th,토륨,Thorium,232.04
+91,Pa,프로트악티늄,Protactinium,231.04
+92,U,우라늄,Uranium,238.03
+93,Np,넵투늄,Neptunium,237
+94,Pu,플루토늄,Plutonium,244
+95,Am,아메리슘,Americium,243
+96,Cm,퀴륨,Curium,247
+97,Bk,버클륨,Berkelium,247
+98,Cf,캘리포늄,Californium,251
+99,Es,아인슈타이늄,Einsteinium,252
+100,Fm,페르뮴,Fermium,257
+101,Md,멘델레븀,Mendelevium,258
+102,No,노벨륨,Nobelium,259
+103,Lr,로렌슘,Lawrencium,266
+104,Rf,러더포듐,Rutherfordium,267
+105,Db,더브늄,Dubnium,268
+106,Sg,시보귬,Seaborgium,269
+107,Bh,보륨,Bohrium,270
+108,Hs,하슘,Hassium,269
+109,Mt,마이트너륨,Meitnerium,278
+110,Ds,다름슈타튬,Darmstadtium,281
+111,Rg,뢴트게늄,Roentgenium,282
+112,Cn,코페르니슘,Copernicium,285
+113,Nh,니호늄,Nihonium,286
+114,Fl,플레로븀,Flerovium,289
+115,Mc,모스코븀,Moscovium,290
+116,Lv,리버모륨,Livermorium,293
+117,Ts,테네신,Tennessine,294
+118,Og,오가네손,Oganesson,294
+`.trim().split('\n').map(l=>{
+  const [z,sym,kr,en,mass]=l.split(',');
+  return {z:+z, sym, kr, en, mass};
+});
+
+const CATS = {
+  'alkali-metal':[3,11,19,37,55,87],
+  'alkaline-earth':[4,12,20,38,56,88],
+  'transition-metal':[21,22,23,24,25,26,27,28,29,30,39,40,41,42,43,44,45,46,47,48,72,73,74,75,76,77,78,79,80,104,105,106,107,108,109,110,111,112],
+  'lanthanide': Array.from({length:15},(_,i)=>57+i),
+  'actinide': Array.from({length:15},(_,i)=>89+i),
+  'post-transition':[13,31,49,50,81,82,83,84,113,114,115,116],
+  'metalloid':[5,14,32,33,51,52,85],
+  'nonmetal':[1,6,7,8,15,16,34],
+  'halogen':[9,17,35,53,117],
+  'noble-gas':[2,10,18,36,54,86,118],
+};
+const CAT_LABEL = {
+  'alkali-metal':'알칼리 금속','alkaline-earth':'알칼리 토금속','transition-metal':'전이 금속',
+  'post-transition':'전이후 금속','metalloid':'준금속','nonmetal':'비금속','halogen':'할로젠',
+  'noble-gas':'비활성 기체','lanthanide':'란타넘족','actinide':'악티늄족','unknown':'미분류'
+};
+const CAT_DEF = {
+  'alkali-metal':'1족에 속하는 금속이에요. 최외각 전자가 1개라서 반응성이 아주 크고, 물이나 산소와 격렬하게 반응해요. 그래서 공기·물과 닿지 않도록 석유 속에 보관해요.',
+  'alkaline-earth':'2족에 속하는 금속이에요. 최외각 전자가 2개로, 알칼리 금속보다는 반응성이 낮지만 역시 물과 반응할 수 있어요.',
+  'transition-metal':'3~12족에 속하는 금속이에요. 대부분 단단하고 광택이 나며, 전기·열을 잘 전달해요. 철, 구리, 금처럼 우리 생활에서 흔히 보는 금속들이 여기에 속해요.',
+  'post-transition':'전이 금속 오른쪽에 있는 금속이에요. 전이 금속보다 무르고 녹는점이 낮은 편이에요.',
+  'metalloid':'금속과 비금속의 중간 성질을 가진 원소예요. 전기가 어느 정도 통해서 반도체 재료(규소 등)로 많이 쓰여요.',
+  'nonmetal':'전기와 열을 잘 전달하지 않는 원소예요. 상온에서 기체이거나 광택 없는 고체로 존재해요.',
+  'halogen':'17족에 속해요. 최외각 전자가 7개라 반응성이 매우 크고, 금속과 쉽게 결합해서 염(예: 소금 NaCl)을 만들어요.',
+  'noble-gas':'18족에 속해요. 최외각 전자 배치가 꽉 차서 매우 안정하기 때문에 다른 원소와 거의 반응하지 않아요.',
+  'lanthanide':'6주기에 속하는 금속 원소들이에요. 서로 화학적 성질이 매우 비슷해서 분리하기 어려워요.',
+  'actinide':'7주기에 속하는 원소들로, 대부분 방사성을 띠고 자연에서는 거의 발견되지 않아요.',
+};
+
+function catOf(z){
+  for(const c in CATS){ if(CATS[c].includes(z)) return c; }
+  return 'unknown';
+}
+
+function getPosition(z){
+  if(z===1) return {period:1,group:1};
+  if(z===2) return {period:1,group:18};
+  if(z<=10){ const map={3:1,4:2,5:13,6:14,7:15,8:16,9:17,10:18}; return {period:2,group:map[z]}; }
+  if(z<=18){ const map={11:1,12:2,13:13,14:14,15:15,16:16,17:17,18:18}; return {period:3,group:map[z]}; }
+  if(z<=36){ return {period:4, group:z-18}; }
+  if(z<=54){ return {period:5, group:z-36}; }
+  if(z<=56){ return {period:6, group:z-54}; }
+  if(z<=71){ return {period:6, group:'lan', idx:z-57}; }
+  if(z<=86){ return {period:6, group:z-68}; }
+  if(z<=88){ return {period:7, group:z-86}; }
+  if(z<=103){ return {period:7, group:'act', idx:z-89}; }
+  return {period:7, group:z-100};
+}
+
+function bohrShells(z){
+  const caps=[2,8,8,2]; // 중학교 2학년 단순 모형(K,L,M,N) — 20번(Ca)까지 적용
+  let rem=z, shells=[];
+  for(const cap of caps){
+    if(rem<=0) break;
+    const e=Math.min(cap, rem);
+    shells.push(e);
+    rem-=e;
+  }
+  return shells;
+}
+
+const GROUP_DESC = {
+  1:'1족(알칼리 금속류): 최외각 전자 1개 — 반응성이 크고 물과 격렬히 반응해요.',
+  2:'2족(알칼리 토금속): 최외각 전자 2개 — 1족보다는 반응성이 낮아요.',
+  13:'13족: 최외각 전자 3개.',
+  14:'14족: 최외각 전자 4개 — 탄소, 규소처럼 다양한 화합물을 만들어요.',
+  15:'15족: 최외각 전자 5개.',
+  16:'16족(산소족): 최외각 전자 6개.',
+  17:'17족(할로젠): 최외각 전자 7개 — 반응성이 매우 크고 다른 원소와 잘 결합해요.',
+  18:'18족(비활성 기체): 최외각 전자가 꽉 차 있어 매우 안정하고 반응을 잘 하지 않아요.'
+};
+
+// ---------- 테이블 그리기 ----------
+const table = document.getElementById('ptable');
+const cellMap = {};
+
+ELEMENTS = RAW;
+RAW.forEach(el=>{
+  const pos = getPosition(el.z);
+  const cat = catOf(el.z);
+  const div = document.createElement('div');
+  div.className = 'cell cat-'+cat;
+  div.dataset.z = el.z;
+  div.dataset.period = pos.period;
+  div.dataset.group = (pos.group==='lan'||pos.group==='act') ? '3' : pos.group;
+
+  let row, col;
+  if(pos.group==='lan'){ row=9; col=3+pos.idx; }
+  else if(pos.group==='act'){ row=10; col=3+pos.idx; }
+  else { row=pos.period; col=pos.group; }
+
+  div.style.gridRow = row;
+  div.style.gridColumn = col;
+
+  div.innerHTML = `<span class="z">${el.z}</span><span class="sym">${el.sym}</span><span class="kr">${el.kr}</span>`;
+  div.addEventListener('click', ()=>selectElement(el.z));
+  div.addEventListener('mouseenter', ()=>hoverHighlight(el.z, true));
+  div.addEventListener('mouseleave', ()=>hoverHighlight(el.z, false));
+  table.appendChild(div);
+  cellMap[el.z] = div;
+});
+
+// 란타넘족/악티늄족 placeholder (period 6,7의 3족 자리)
+function addPlaceholder(row, col, label){
+  const ph = document.createElement('div');
+  ph.className = 'cell ph';
+  ph.style.gridRow = row;
+  ph.style.gridColumn = col;
+  ph.textContent = label;
+  table.appendChild(ph);
+}
+addPlaceholder(6,3,'57–71 ↓');
+addPlaceholder(7,3,'89–103 ↓');
+
+// 빈 공간 채우기용 스페이서 행 (5,8행 사이 여백)
+const spacer = document.createElement('div');
+spacer.style.gridRow = 8;
+spacer.style.gridColumn = '1 / span 18';
+spacer.style.height = '10px';
+table.appendChild(spacer);
+
+function hoverHighlight(z, on){
+  const cell = cellMap[z];
+  const period = cell.dataset.period, group = cell.dataset.group;
+  Object.values(cellMap).forEach(c=>{
+    if(c.dataset.period===period) c.classList.toggle('row-hi', on);
+    if(c.dataset.group===group) c.classList.toggle('col-hi', on);
+  });
+}
+
+function selectHighlight(z){
+  Object.values(cellMap).forEach(c=>c.classList.remove('row-sel','col-sel'));
+  const cell = cellMap[z];
+  const period = cell.dataset.period, group = cell.dataset.group;
+  Object.values(cellMap).forEach(c=>{
+    c.classList.toggle('row-sel', c.dataset.period===period);
+    c.classList.toggle('col-sel', c.dataset.group===group);
+  });
+}
+
+// ---------- 상세 패널 ----------
+let currentZ = null;
+
+function selectElement(z){
+  currentZ = z;
+  Object.values(cellMap).forEach(c=>c.classList.remove('selected'));
+  cellMap[z].classList.add('selected');
+  selectHighlight(z);
+  renderPanel(z);
+}
+
+function renderPanel(z){
+  const el = RAW.find(e=>e.z===z);
+  const cat = catOf(z);
+  const pos = getPosition(z);
+  const groupLabel = (pos.group==='lan') ? '란타넘족' : (pos.group==='act') ? '악티늄족' : pos.group+'족';
+  const panel = document.getElementById('panel');
+
+  let bohrHTML = '';
+  if(z<=20){
+    const shells = bohrShells(z);
+    bohrHTML = `
+      <div class="bohr-box">${drawBohr(shells, cat)}</div>
+      <div class="shell-formula">전자 배치: K,L,M,N = ${shells.join(', ')}</div>
+    `;
+  } else {
+    bohrHTML = `<div class="bohr-note">이 원소의 정밀한 전자 배치는 고등학교 과정에서 배우는 오비탈 개념이 필요해요.<br>(중학교 단순 모형은 1~20번 원소에 적용됩니다)</div>`;
+  }
+
+  let ruleHTML = '';
+  if(typeof pos.group === 'number' && GROUP_DESC[pos.group]){
+    ruleHTML = `<div class="rule-box">${GROUP_DESC[pos.group]}</div>`;
+  } else {
+    ruleHTML = `<div class="rule-box">같은 주기(${pos.period}주기) 원소들은 전자껍질 수가 같아요.</div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="panel-head">
+      <div class="panel-sym cat-${cat}">${el.sym}</div>
+      <div class="panel-title">
+        <div class="name-kr">${el.kr}</div>
+        <div class="name-en">${el.en}</div>
+      </div>
+    </div>
+    <div class="cat-tag cat-${cat}">${CAT_LABEL[cat]}</div>
+    <div class="stat-grid">
+      <div class="stat"><div class="label">원자 번호</div><div class="value">${el.z}</div></div>
+      <div class="stat"><div class="label">원자량</div><div class="value">${el.mass}</div></div>
+      <div class="stat"><div class="label">주기</div><div class="value">${pos.period}주기</div></div>
+      <div class="stat"><div class="label">족</div><div class="value">${groupLabel}</div></div>
+    </div>
+    <div class="hi-note">👈 표에서 진하게 강조된 가로줄이 <b>주기</b>, 세로줄이 <b>족</b>이에요.</div>
+    ${bohrHTML}
+    ${ruleHTML}
+  `;
+}
+
+function drawBohr(shells, cat){
+  const size = 220, cx = size/2, cy = size/2;
+  const ringGap = 26, baseR = 26;
+  let svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
+  svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="var(--ink)"/>`;
+  shells.forEach((count, i)=>{
+    const r = baseR + i*ringGap;
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line)" stroke-width="1.5"/>`;
+    const dur = 6 + i*3;
+    svg += `<g class="orbit-group" style="transform-origin:${cx}px ${cy}px; animation: spin ${dur}s linear infinite;">`;
+    for(let k=0;k<count;k++){
+      const angle = (2*Math.PI/count)*k;
+      const ex = cx + r*Math.cos(angle);
+      const ey = cy + r*Math.sin(angle);
+      svg += `<circle cx="${ex}" cy="${ey}" r="4.2" fill="var(--c-${catClassSuffix(cat)})" />`;
+    }
+    svg += `</g>`;
+  });
+  svg += `</svg>`;
+  return svg;
+}
+function catClassSuffix(cat){
+  const map = {'alkali-metal':'alkali','alkaline-earth':'alkaline','transition-metal':'transition',
+    'post-transition':'post','metalloid':'metalloid','nonmetal':'nonmetal','halogen':'halogen',
+    'noble-gas':'noble','lanthanide':'lan','actinide':'act','unknown':'unknown'};
+  return map[cat] || 'unknown';
+}
+
+// ---------- 필터 ----------
+document.querySelectorAll('.chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    const cat = chip.dataset.cat;
+    Object.entries(cellMap).forEach(([z,cell])=>{
+      const match = (cat==='all') || (catOf(+z)===cat);
+      cell.classList.toggle('dim', !match);
+    });
+
+    const infoBox = document.getElementById('categoryInfo');
+    if(cat==='all' || !CAT_DEF[cat]){
+      infoBox.classList.remove('show');
+      infoBox.innerHTML='';
+    } else {
+      const dotColor = chip.querySelector('.dot').style.background;
+      infoBox.innerHTML = `<span class="ci-dot" style="background:${dotColor}"></span><span><b>${CAT_LABEL[cat]}</b> — ${CAT_DEF[cat]}</span>`;
+      infoBox.classList.add('show');
+    }
+  });
+});
+
+// ---------- 검색 ----------
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  const q = e.target.value.trim().toLowerCase();
+  if(!q){
+    Object.values(cellMap).forEach(c=>c.classList.remove('dim'));
+    return;
+  }
+  Object.entries(cellMap).forEach(([z,cell])=>{
+    const el = RAW.find(e=>e.z===+z);
+    const match = el.kr.includes(q) || el.sym.toLowerCase().includes(q) || el.en.toLowerCase().includes(q);
+    cell.classList.toggle('dim', !match);
+  });
+});
+
+// ================= 탭 전환 =================
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='escape') startEscapeTimer();
+    else stopEscapeTimer();
+  });
+});
+
+// ================= 원자 제작소 =================
+const elByZ = z => RAW.find(e=>e.z===z);
+
+let atom = { protons:0, electrons:0, neutrons:0 };
+
+function shellsFromElectrons(n){
+  return bohrShells(n); // 재사용: K,L,M,N = 2,8,8,2 (최대 20)
+}
+
+function renderAtom(){
+  document.getElementById('protonCount').textContent = atom.protons;
+  document.getElementById('electronCount').textContent = atom.electrons;
+  document.getElementById('neutronCount').textContent = atom.neutrons;
+  document.getElementById('massReadout').textContent = '질량수: ' + (atom.protons + atom.neutrons);
+
+  const el = atom.protons>=1 && atom.protons<=118 ? elByZ(atom.protons) : null;
+  document.getElementById('roName').textContent = el ? el.kr : '?';
+  document.getElementById('roSym').textContent = el ? (el.en + ' · 원자번호 ' + el.z) : '양성자를 넣어보세요';
+
+  const charge = atom.protons - atom.electrons;
+  const badge = document.getElementById('chargeBadge');
+  badge.classList.remove('neutral','positive','negative');
+  if(atom.protons===0 && atom.electrons===0){
+    badge.textContent = '입자를 넣어보세요';
+  } else if(charge===0){
+    badge.textContent = '⚖️ 중성 원자';
+    badge.classList.add('neutral');
+  } else if(charge>0){
+    badge.textContent = `+${charge} 양이온`;
+    badge.classList.add('positive');
+  } else {
+    badge.textContent = `${charge} 음이온`;
+    badge.classList.add('negative');
+  }
+
+  // 캔버스 그리기
+  const canvas = document.getElementById('atomCanvas');
+  const size = 260, cx=size/2, cy=size/2, baseR=30, ringGap=28;
+  const shells = shellsFromElectrons(Math.min(atom.electrons,20));
+  let svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
+
+  // 양성자/중성자 뭉치 (핵)
+  const nucleusParticles = [];
+  for(let i=0;i<atom.protons;i++) nucleusParticles.push('p');
+  for(let i=0;i<atom.neutrons;i++) nucleusParticles.push('n');
+  const nCount = nucleusParticles.length;
+  nucleusParticles.forEach((type,i)=>{
+    const a = nCount<=1 ? 0 : (2*Math.PI/nCount)*i;
+    const rr = nCount<=1 ? 0 : Math.min(16, 3+nCount*0.6);
+    const px = cx + rr*Math.cos(a) + (Math.sin(i*13)*2);
+    const py = cy + rr*Math.sin(a) + (Math.cos(i*17)*2);
+    svg += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="6.5" fill="${type==='p' ? '#d65f5f':'#9aa3ab'}" stroke="#fff" stroke-width="1"/>`;
+  });
+  if(nCount===0){ svg += `<circle cx="${cx}" cy="${cy}" r="8" fill="none" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="3 3"/>`; }
+
+  // 전자 껍질
+  shells.forEach((count,i)=>{
+    const r = baseR + i*ringGap;
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line)" stroke-width="1.5"/>`;
+    const dur = 6+i*3;
+    svg += `<g class="orbit-group" style="transform-origin:${cx}px ${cy}px; animation: spin ${dur}s linear infinite;">`;
+    for(let k=0;k<count;k++){
+      const angle = (2*Math.PI/count)*k;
+      const ex = cx + r*Math.cos(angle), ey = cy + r*Math.sin(angle);
+      svg += `<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="5" fill="#2c6e63"/>`;
+    }
+    svg += `</g>`;
+  });
+  if(atom.electrons>20){
+    svg += `<text x="${cx}" y="${size-8}" text-anchor="middle" font-size="10" fill="var(--ink-soft)" font-family="IBM Plex Mono, monospace">전자 20개 이후는 고등 과정에서!</text>`;
+  }
+  svg += `</svg>`;
+  canvas.innerHTML = svg;
+}
+
+document.getElementById('protonPlus').addEventListener('click', ()=>{ if(atom.protons<118){ atom.protons++; renderAtom(); checkMission(); }});
+document.getElementById('protonMinus').addEventListener('click', ()=>{ if(atom.protons>0){ atom.protons--; renderAtom(); checkMission(); }});
+document.getElementById('electronPlus').addEventListener('click', ()=>{ atom.electrons++; renderAtom(); checkMission(); });
+document.getElementById('electronMinus').addEventListener('click', ()=>{ if(atom.electrons>0){ atom.electrons--; renderAtom(); checkMission(); }});
+document.getElementById('neutronPlus').addEventListener('click', ()=>{ atom.neutrons++; renderAtom(); });
+document.getElementById('neutronMinus').addEventListener('click', ()=>{ if(atom.neutrons>0){ atom.neutrons--; renderAtom(); }});
+document.getElementById('neutronToggle').addEventListener('change', (e)=>{
+  document.getElementById('neutronGroup').style.display = e.target.checked ? 'block' : 'none';
+  if(!e.target.checked){ atom.neutrons = 0; renderAtom(); }
+});
+document.getElementById('atomReset').addEventListener('click', ()=>{ atom = {protons:0, electrons:0, neutrons:0}; renderAtom(); });
+
+let missionTarget = null;
+function checkMission(){
+  if(!missionTarget) return;
+  const mt = document.getElementById('missionText');
+  if(atom.protons === missionTarget.z && atom.electrons === missionTarget.z){
+    mt.textContent = `✅ 성공! ${missionTarget.kr}(${missionTarget.sym}) 중성 원자를 완성했어요!`;
+    mt.classList.add('success');
+    missionTarget = null;
+  }
+}
+document.getElementById('missionBtn').addEventListener('click', ()=>{
+  const pool = RAW.filter(e=>e.z<=20);
+  missionTarget = pool[Math.floor(Math.random()*pool.length)];
+  const mt = document.getElementById('missionText');
+  mt.classList.remove('success');
+  mt.textContent = `"${missionTarget.kr}" 중성 원자를 만들어 보세요! (양성자 수 = 전자 수 = ${missionTarget.z})`;
+});
+
+renderAtom();
+
+// ================= 방탈출 =================
+// 간이 주기율표: 1~20번 원소, 대표족(1,2,13~18)만 사용
+const ESCAPE_COLS = [1,2,13,14,15,16,17,18];
+const ESCAPE_ELEMENTS = RAW.filter(e=>e.z<=20).map(e=>{
+  const pos = getPosition(e.z);
+  return {...e, period: pos.period, group: pos.group};
+}).filter(e=> ESCAPE_COLS.includes(e.group));
+
+const escGrid = document.getElementById('escapeGrid');
+const escTray = document.getElementById('escapeTray');
+const escCellMap = {};
+let escSelectedCard = null;
+let escSolvedSet = new Set();
+let escMissCount = 0;
+let escHintsLeft = 3;
+let escTimerSec = 0, escTimerHandle = null;
+
+function startEscapeTimer(){
+  if(escTimerHandle || escSolvedSet.size>=ESCAPE_ELEMENTS.length) return;
+  escTimerHandle = setInterval(()=>{
+    escTimerSec++;
+    const m = String(Math.floor(escTimerSec/60)).padStart(2,'0');
+    const s = String(escTimerSec%60).padStart(2,'0');
+    document.getElementById('escTimer').textContent = `${m}:${s}`;
+  },1000);
+}
+function stopEscapeTimer(){ clearInterval(escTimerHandle); escTimerHandle=null; }
+
+function buildEscapeGrid(){
+  escGrid.innerHTML='';
+  for(let p=1;p<=4;p++){
+    ESCAPE_COLS.forEach((g,colIdx)=>{
+      const cell = document.createElement('div');
+      cell.className = 'egcell';
+      cell.style.gridRow = p;
+      cell.style.gridColumn = colIdx+1;
+      const target = ESCAPE_ELEMENTS.find(e=>e.period===p && e.group===g);
+      if(target){
+        cell.classList.add('targetable');
+        cell.dataset.z = target.z;
+        cell.innerHTML = `<span class="glabel">${g}족</span>`;
+        cell.addEventListener('click', ()=>onCellClick(cell));
+        escCellMap[target.z] = cell;
+      } else {
+        cell.classList.add('unused');
+      }
+      escGrid.appendChild(cell);
+    });
+  }
+}
+
+function buildEscapeTray(){
+  escTray.innerHTML='';
+  escTray.className = 'escape-tray mode-'+cardMode;
+  const shuffled = [...ESCAPE_ELEMENTS].sort(()=>Math.random()-0.5);
+  shuffled.forEach(el=>{
+    const cat = catOf(el.z);
+    const card = document.createElement('div');
+    card.className = 'ecard cat-'+cat+' mode-'+cardMode;
+    card.dataset.z = el.z;
+    card.innerHTML = cardInnerHTML(el);
+    card.addEventListener('click', ()=>onCardClick(card));
+    escTray.appendChild(card);
+  });
+}
+
+function cardInnerHTML(el){
+  if(cardMode==='korean'){
+    return `<span class="kr">${el.kr}</span>`;
+  }
+  return `<span class="sym">${el.sym}</span>`;
+}
+
+let cardMode = 'symbol';
+document.querySelectorAll('.mode-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    cardMode = btn.dataset.mode;
+    buildEscapeTray();
+  });
+});
+
+function onCardClick(card){
+  document.querySelectorAll('.ecard').forEach(c=>c.classList.remove('selected'));
+  card.classList.add('selected');
+  escSelectedCard = card;
+}
+
+function onCellClick(cell){
+  if(!escSelectedCard) return;
+  const cardZ = +escSelectedCard.dataset.z;
+  const cellZ = +cell.dataset.z;
+  if(cardZ === cellZ){
+    const el = elByZ(cardZ);
+    cell.style.background = '';
+    cell.style.borderColor = '';
+    cell.classList.add('filled');
+    cell.classList.add('right-flash');
+    setTimeout(()=>cell.classList.remove('right-flash'), 350);
+
+    const placedCard = escSelectedCard.cloneNode(true);
+    placedCard.classList.remove('selected');
+    placedCard.classList.add('placed-card');
+    cell.innerHTML = '';
+    cell.appendChild(placedCard);
+
+    const reward = document.createElement('div');
+    reward.className = 'kr-reward';
+    reward.textContent = `${el.kr}(${el.sym})!`;
+    cell.appendChild(reward);
+    setTimeout(()=>reward.remove(), 1300);
+
+    cell.addEventListener('click', ()=>showPropertyPopup(cardZ));
+    escSelectedCard.classList.add('placed');
+    escSelectedCard = null;
+    escSolvedSet.add(cardZ);
+    document.getElementById('escSolved').textContent = escSolvedSet.size;
+    if(escSolvedSet.size === ESCAPE_ELEMENTS.length){ finishEscape(); }
+  } else {
+    cell.classList.add('wrong-flash');
+    setTimeout(()=>cell.classList.remove('wrong-flash'), 350);
+    escMissCount++;
+    document.getElementById('escMiss').textContent = escMissCount;
+  }
+}
+
+const GROUP_PROPS = {
+  1: { title:'1족 · 알칼리 금속', text:'최외각 전자가 1개라서 반응성이 아주 커요. 물에 넣으면 격렬하게 반응하며 수소 기체(기포)를 만들어요. 반응성이 너무 커서 공기·물과 닿지 않도록 석유 속에 보관해요.', anim:'fizz', color:'#d65f5f' },
+  2: { title:'2족 · 알칼리 토금속', text:'최외각 전자가 2개예요. 1족보다는 반응성이 낮지만 역시 물과 서서히 반응할 수 있어요.', anim:'fizz-slow', color:'#e0a458' },
+  13:{ title:'13족', text:'최외각 전자가 3개인 원소들이에요.', anim:'none', color:'#7a9e7e' },
+  14:{ title:'14족', text:'최외각 전자가 4개예요. 탄소, 규소처럼 다양한 화합물을 잘 만들어요.', anim:'none', color:'#9c7bb0' },
+  15:{ title:'15족', text:'최외각 전자가 5개인 원소들이에요.', anim:'none', color:'#4e9a8e' },
+  16:{ title:'16족 · 산소족', text:'최외각 전자가 6개예요.', anim:'none', color:'#4e9a8e' },
+  17:{ title:'17족 · 할로젠', text:'최외각 전자가 7개라 반응성이 매우 커요. 금속과 쉽게 결합해서 염(예: 소금 NaCl)을 만들어요.', anim:'spark', color:'#d4a537' },
+  18:{ title:'18족 · 비활성 기체', text:'전자 배치가 꽉 차서 매우 안정해요. 다른 원소와 거의 반응하지 않아요. 그래서 헬륨은 비행선에, 아르곤은 용접할 때 보호 기체로, 네온은 네온사인에 활용돼요.', anim:'still', color:'#6e6e9e' },
+};
+
+function popupAnimSVG(kind, color){
+  if(kind==='fizz' || kind==='fizz-slow'){
+    const n = kind==='fizz' ? 10 : 5;
+    let bubbles='';
+    for(let i=0;i<n;i++){
+      const x = 30 + Math.random()*140;
+      const delay = (Math.random()*1.4).toFixed(2);
+      const dur = (1+Math.random()*0.8).toFixed(2);
+      bubbles += `<circle cx="${x}" cy="90" r="${3+Math.random()*4}" fill="${color}" opacity="0.75" style="animation: bubble ${dur}s ease-in ${delay}s infinite;"/>`;
+    }
+    return `<svg width="200" height="110" viewBox="0 0 200 110">
+      <rect x="20" y="88" width="160" height="14" rx="4" fill="#bcd6f2"/>
+      <rect x="88" y="55" width="24" height="40" rx="4" fill="${color}"/>
+      ${bubbles}
+    </svg>`;
+  }
+  if(kind==='spark'){
+    return `<svg width="200" height="110" viewBox="0 0 200 110">
+      <circle cx="100" cy="55" r="26" fill="${color}" opacity="0.85">
+        <animate attributeName="r" values="22;30;22" dur="1.1s" repeatCount="indefinite"/>
+      </circle>
+      <g stroke="${color}" stroke-width="2">
+        <line x1="100" y1="10" x2="100" y2="24"><animate attributeName="opacity" values="1;0;1" dur="0.6s" repeatCount="indefinite"/></line>
+        <line x1="100" y1="86" x2="100" y2="100"><animate attributeName="opacity" values="0;1;0" dur="0.6s" repeatCount="indefinite"/></line>
+        <line x1="45" y1="55" x2="59" y2="55"><animate attributeName="opacity" values="1;0;1" dur="0.7s" repeatCount="indefinite"/></line>
+        <line x1="141" y1="55" x2="155" y2="55"><animate attributeName="opacity" values="0;1;0" dur="0.7s" repeatCount="indefinite"/></line>
+      </g>
+    </svg>`;
+  }
+  if(kind==='still'){
+    return `<svg width="200" height="110" viewBox="0 0 200 110">
+      <circle cx="100" cy="55" r="18" fill="${color}" opacity="0.35"/>
+      <circle cx="100" cy="55" r="6" fill="${color}"/>
+    </svg>`;
+  }
+  return `<svg width="200" height="110" viewBox="0 0 200 110"><circle cx="100" cy="55" r="14" fill="${color}"/></svg>`;
+}
+
+function showPropertyPopup(z){
+  const pos = getPosition(z);
+  const info = GROUP_PROPS[pos.group];
+  const el = elByZ(z);
+  if(!info) return;
+  // 수소는 1족 자리에 있지만 실제로는 알칼리 금속이 아니므로 설명을 따로 표시
+  const bodyText = (z===1)
+    ? '수소는 1족 자리에 있지만 금속이 아닌 비금속 기체예요. 최외각 전자가 1개라는 점만 알칼리 금속과 같고, 성질은 많이 달라요.'
+    : `<b>${el.kr}(${el.sym})</b>도 이 족의 일원이에요.<br>${info.text}`;
+  document.getElementById('popupCard').innerHTML = `
+    <div class="popup-anim">${popupAnimSVG(z===1?'none':info.anim, info.color)}</div>
+    <h3>${info.title}</h3>
+    <p>${bodyText}</p>
+    <button class="popup-close" id="popupCloseBtn">닫기</button>
+  `;
+  document.getElementById('popupBackdrop').classList.add('show');
+  document.getElementById('popupCloseBtn').addEventListener('click', ()=>{
+    document.getElementById('popupBackdrop').classList.remove('show');
+  });
+}
+document.getElementById('popupBackdrop').addEventListener('click', (e)=>{
+  if(e.target.id==='popupBackdrop') e.currentTarget.classList.remove('show');
+});
+
+document.getElementById('hintBtn').addEventListener('click', ()=>{
+  if(escHintsLeft<=0) return;
+  const remaining = ESCAPE_ELEMENTS.filter(e=>!escSolvedSet.has(e.z));
+  if(remaining.length===0) return;
+  const pick = remaining[Math.floor(Math.random()*remaining.length)];
+  const cell = escCellMap[pick.z];
+  cell.style.background = '#fff6e8';
+  cell.style.borderColor = 'var(--accent-2)';
+  cell.querySelector('.glabel').textContent = `${pick.sym} 힌트!`;
+  setTimeout(()=>{
+    cell.style.background=''; cell.style.borderColor='';
+    if(!cell.classList.contains('filled')){
+      cell.querySelector('.glabel').textContent = pick.group+'족';
+    }
+  }, 2200);
+  escHintsLeft--;
+  document.getElementById('escHints').textContent = escHintsLeft;
+  if(escHintsLeft<=0) document.getElementById('hintBtn').disabled = true;
+});
+
+function finishEscape(){
+  stopEscapeTimer();
+  let rank = '🥉', title='탈출 성공!';
+  if(escMissCount===0 && escHintsLeft===3 && escTimerSec<180){ rank='🥇'; title='퍼펙트 탈출!'; }
+  else if(escMissCount<=3 && escHintsLeft>=1){ rank='🥈'; title='훌륭한 탈출!'; }
+  const m = String(Math.floor(escTimerSec/60)).padStart(2,'0');
+  const s = String(escTimerSec%60).padStart(2,'0');
+  document.getElementById('winCard').innerHTML = `
+    <div class="win-rank">${rank}</div>
+    <div class="win-title">${title}</div>
+    <p>시간 ${m}:${s} · 오답 ${escMissCount}회 · 사용한 힌트 ${3-escHintsLeft}회</p>
+    <button class="popup-close" id="winCloseBtn">확인</button>
+  `;
+  document.getElementById('winBackdrop').classList.add('show');
+  document.getElementById('winCloseBtn').addEventListener('click', ()=>{
+    document.getElementById('winBackdrop').classList.remove('show');
+  });
+}
+
+document.getElementById('escReset').addEventListener('click', resetEscape);
+function resetEscape(){
+  stopEscapeTimer();
+  escSolvedSet = new Set();
+  escMissCount = 0; escHintsLeft = 3; escTimerSec = 0;
+  document.getElementById('escSolved').textContent = 0;
+  document.getElementById('escMiss').textContent = 0;
+  document.getElementById('escHints').textContent = 3;
+  document.getElementById('escTimer').textContent = '00:00';
+  document.getElementById('hintBtn').disabled = false;
+  buildEscapeGrid();
+  buildEscapeTray();
+}
+resetEscape();
+
+// ================= 주기율표의 역사 =================
+document.getElementById('geHighlight').addEventListener('click', ()=>{
+  document.querySelector('.tab-btn[data-tab="explorer"]').click();
+  selectElement(32); // 저마늄
+  cellMap[32].scrollIntoView({behavior:'smooth', block:'center'});
+});
+
+const ANOMALY_SET = [17,18,19,20]; // Cl, Ar, K, Ca
+function renderAnomalyRow(byMass){
+  const els = ANOMALY_SET.map(z=>elByZ(z));
+  const sorted = byMass ? [...els].sort((a,b)=>parseFloat(a.mass)-parseFloat(b.mass)) : [...els].sort((a,b)=>a.z-b.z);
+  const row = document.getElementById('anomalyRow');
+  row.innerHTML = sorted.map(el=>{
+    const cat = catOf(el.z);
+    return `<div class="a-card cat-${cat}"><span class="sym">${el.sym}</span><span class="z">Z=${el.z}</span><span class="mass">${el.mass}</span></div>`;
+  }).join('');
+
+  const msg = document.getElementById('anomalyMsg');
+  const orderZ = sorted.map(e=>e.z).join(',');
+  const isNumberOrder = orderZ === '17,18,19,20';
+  if(!byMass || isNumberOrder){
+    msg.className = 'anomaly-msg ok';
+    msg.textContent = '✅ 할로젠 → 비활성 기체 → 알칼리 금속 → 알칼리 토금속 순서로 성질이 규칙적으로 이어져요. 모즐리의 원자 번호 순서죠!';
+  } else {
+    msg.className = 'anomaly-msg warn';
+    msg.textContent = '⚠️ 아르곤(Ar)과 칼륨(K)의 순서가 뒤바뀌었어요! 원자량만 보면 K(39.10)가 Ar(39.95)보다 작아서 먼저 오지만, 그러면 비활성 기체 뒤에 알칼리 금속이 와야 할 규칙적인 흐름이 깨져요. 멘델레예프가 겪었던 바로 그 문제예요.';
+  }
+}
+document.getElementById('sortByNumber').addEventListener('click', function(){
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
+  this.classList.add('active');
+  renderAnomalyRow(false);
+});
+document.getElementById('sortByMass').addEventListener('click', function(){
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
+  this.classList.add('active');
+  renderAnomalyRow(true);
+});
+renderAnomalyRow(false);
+</script>
+</body>
+</html>
