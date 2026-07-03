@@ -6,6 +6,7 @@
 <title>주기율표 인터랙티브 탐색기</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root{
     --bg: #eef2f0;
@@ -62,6 +63,28 @@
     letter-spacing:-0.01em;
   }
   .subtitle{color:var(--ink-soft); font-size:14px; max-width:640px; line-height:1.6;}
+
+  .progress-strip{
+    display:flex; flex-wrap:wrap; align-items:center; gap:16px;
+    background:var(--panel); border:1.5px solid var(--line); border-radius:10px;
+    padding:10px 16px; margin: 16px 0; font-size:12.5px; color:var(--ink-soft);
+  }
+  .ps-item b{ color:var(--accent); font-family:'IBM Plex Mono',monospace; }
+  .ps-item span{ color:var(--accent-2); font-family:'IBM Plex Mono',monospace; margin-left:2px;}
+  .ps-reset{
+    margin-left:auto; font-family:'Noto Sans KR',sans-serif; font-size:11.5px;
+    padding:6px 12px; border-radius:8px; border:1.5px solid var(--line); background:#fff;
+    color:var(--ink-soft); cursor:pointer;
+  }
+  .ps-reset:hover{ border-color:var(--c-alkali); color:var(--c-alkali); }
+
+  .overlay-select{
+    font-family:'Noto Sans KR', sans-serif; font-size:12.5px; padding:8px 10px;
+    border-radius:8px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer;
+  }
+  .overlay-legend{ display:none; align-items:center; gap:8px; margin: -6px 0 16px; font-size:11.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; }
+  .overlay-legend.show{ display:flex; }
+  .overlay-gradient{ width:140px; height:10px; border-radius:6px; }
 
   .toolbar{
     display:flex; flex-wrap:wrap; gap:8px;
@@ -269,6 +292,18 @@
     line-height:1.7;
     color:#33403a;
   }
+
+  .use-box{
+    background:#eef7f2;
+    border:1px solid #cfe8db;
+    border-radius:8px;
+    padding:10px 12px;
+    font-size:12.5px;
+    line-height:1.7;
+    color:#2f5a44;
+    margin: 10px 0;
+  }
+  .use-box b{ color:#1f4a34; }
 
   .hi-note{
     font-size:11.5px; color:var(--ink-soft); margin: -10px 0 14px;
@@ -517,6 +552,14 @@
   }
   .anomaly-msg.ok{ background:#e4f2ee; color:var(--accent); }
   .anomaly-msg.warn{ background:#fbeaea; color:#a34747; }
+  /* ---- 트렌드 ---- */
+  .trend-controls{ display:flex; flex-wrap:wrap; gap:10px; padding:16px; }
+  .sel{
+    font-family:'Noto Sans KR', sans-serif; font-size:12.5px; padding:8px 10px;
+    border-radius:8px; border:1.5px solid var(--line); background:#fff; color:var(--ink); cursor:pointer;
+  }
+  .chart-card{ padding:20px; height:360px; }
+  .chart-card canvas{ width:100% !important; height:100% !important; }
 </style>
 </head>
 <body>
@@ -527,8 +570,16 @@
     <p class="subtitle">관찰하고(탐색기) · 직접 만들어보고(원자 제작소) · 배운 걸 써먹어 보는(방탈출) 3단계 학습 도구입니다.</p>
   </header>
 
+  <div class="progress-strip" id="progressStrip">
+    <div class="ps-item">🔎 본 원소 <b id="psViewed">0</b>/118</div>
+    <div class="ps-item">🚪 방탈출 완료 <b id="psEscape">0</b>회<span id="psBest"></span></div>
+    <div class="ps-item">⚛️ 미션 성공 <b id="psMission">0</b>회</div>
+    <button class="ps-reset" id="psReset">↺ 진행상황 초기화</button>
+  </div>
+
   <div class="tabnav">
     <button class="tab-btn active" data-tab="explorer">🔎 주기율표 탐색기</button>
+    <button class="tab-btn" data-tab="trend">📈 트렌드</button>
     <button class="tab-btn" data-tab="builder">⚛️ 원자 제작소</button>
     <button class="tab-btn" data-tab="escape">🚪 주기율표 방탈출</button>
     <button class="tab-btn" data-tab="history">📜 주기율표의 역사</button>
@@ -537,6 +588,13 @@
   <section class="tab-panel active" id="tab-explorer">
   <div class="toolbar">
     <input type="text" class="search" id="searchInput" placeholder="원소 이름 또는 기호 검색…">
+    <select class="overlay-select" id="overlaySelect">
+      <option value="cat">🎨 분류별 색상</option>
+      <option value="en_val">⚡ 전기음성도</option>
+      <option value="mp">🌡️ 녹는점</option>
+      <option value="density">⚖️ 밀도</option>
+      <option value="state">💧 실온 상태</option>
+    </select>
     <div class="chip active" data-cat="all"><span class="dot" style="background:var(--ink)"></span>전체</div>
     <div class="chip" data-cat="alkali-metal"><span class="dot" style="background:var(--c-alkali)"></span>알칼리 금속</div>
     <div class="chip" data-cat="alkaline-earth"><span class="dot" style="background:var(--c-alkaline)"></span>알칼리 토금속</div>
@@ -551,6 +609,7 @@
   </div>
 
   <div class="category-info" id="categoryInfo"></div>
+  <div class="overlay-legend" id="overlayLegend"></div>
 
   <div class="layout">
     <div class="table-scroll">
@@ -564,6 +623,36 @@
       </div>
     </div>
   </div>
+  </section>
+
+  <!-- ===================== 트렌드 ===================== -->
+  <section class="tab-panel" id="tab-trend">
+    <div class="card trend-controls">
+      <select class="sel" id="trProp">
+        <option value="en_val">전기음성도 (Pauling)</option>
+        <option value="ar">원자 반지름 (pm)</option>
+        <option value="ie">제1 이온화 에너지 (kJ/mol)</option>
+        <option value="mp">녹는점 (°C)</option>
+        <option value="density">밀도 (g/cm³)</option>
+      </select>
+      <select class="sel" id="trRange">
+        <option value="20">1~20번 (교과 필수)</option>
+        <option value="36">1~36번 (1~4주기)</option>
+        <option value="54">1~54번 (1~5주기)</option>
+        <option value="118">전체 원소</option>
+      </select>
+      <select class="sel" id="trFilter">
+        <option value="all">전체</option>
+        <option value="g1">1족 알칼리 금속</option>
+        <option value="g2">2족 알칼리 토금속</option>
+        <option value="g17">17족 할로젠</option>
+        <option value="g18">18족 비활성 기체</option>
+        <option value="p2">2주기</option>
+        <option value="p3">3주기</option>
+      </select>
+    </div>
+    <div class="card chart-card"><canvas id="trendChart"></canvas></div>
+    <div class="rule-box" id="trendInsight" style="margin-top:14px;"></div>
   </section>
 
   <!-- ===================== 원자 제작소 ===================== -->
@@ -836,6 +925,15 @@ const RAW = `
   return {z:+z, sym, kr, en, mass};
 });
 
+// ---------- 확장 데이터 (전기음성도·녹는점·밀도 등) ----------
+const EXTRA_RAW = [{"z":1,"en_val":2.2,"mp":-259.1,"bp":-252.9,"density":0.0000899,"state":"기체","year":1766,"ar":53,"ie":1312,"use":"물(H₂O), 연료전지, 암모니아","tip":"1족에 위치하지만 비금속. 원자가 전자 1개. 우주에서 가장 풍부한 원소."},{"z":2,"en_val":null,"mp":-272.2,"bp":-268.9,"density":0.000179,"state":"기체","year":1868,"ar":31,"ie":2372,"use":"풍선, MRI 냉각제, 잠수호흡","tip":"비활성기체. 전자 꺽질 완전히 채워져 화학 반응 거의 안 함."},{"z":3,"en_val":0.98,"mp":180.5,"bp":1342,"density":0.534,"state":"고체","year":1817,"ar":152,"ie":520,"use":"배터리(스마트폰·전기차), 정신과 약물","tip":"알칼리금속. 원자가 전자 1개. 물과 반응해 수소 기체 발생. 가장 가벨운 금속."},{"z":4,"en_val":1.57,"mp":1287,"bp":2469,"density":1.85,"state":"고체","year":1798,"ar":112,"ie":900,"use":"X선 창문, 항공우주 부품","tip":"알칼리토금속. 원자가 전자 2개. 독성 있어 취급 주의."},{"z":5,"en_val":2.04,"mp":2077,"bp":4000,"density":2.34,"state":"고체","year":1808,"ar":87,"ie":800,"use":"붕규산 유리, 세제, 반도체 도핑","tip":"준금속. 금속과 비금속 중간 성질."},{"z":6,"en_val":2.55,"mp":3550,"bp":4027,"density":2.267,"state":"고체","year":-3750,"ar":77,"ie":1086,"use":"다이아몬드, 흔연(연필), CO₂, 플라스틱","tip":"비금속. 탄소 동소체(다이아몬드·흔연). 원자가 전자 4개로 무궁무진한 화합물 형성. 생명체의 핵심."},{"z":7,"en_val":3.04,"mp":-210,"bp":-195.8,"density":0.001251,"state":"기체","year":1772,"ar":75,"ie":1402,"use":"공기 78%, 비료, 냉각제(액체질소)","tip":"비금속. 원자가 전자 5개. 삼중결합(N≡N)으로 매우 안정적."},{"z":8,"en_val":3.44,"mp":-218.8,"bp":-183,"density":0.001429,"state":"기체","year":1774,"ar":73,"ie":1314,"use":"호흡, 연소, 물(H₂O), 산화제","tip":"비금속. 전기음성도 두 번째. 원자가 전자 6개. 대기의 21%."},{"z":9,"en_val":3.98,"mp":-219.6,"bp":-188.1,"density":0.001696,"state":"기체","year":1886,"ar":72,"ie":1681,"use":"치약(불소), 테플론(프라이팬 코팅)","tip":"할로겨. 전기음성도 최대(3.98). 반응성 최강 비금속. 원자가 전자 7개."},{"z":10,"en_val":null,"mp":-248.6,"bp":-246.1,"density":0.0009,"state":"기체","year":1898,"ar":38,"ie":2081,"use":"네온사인, 레이저, 냉매","tip":"비활성기체. 전자 꺽질 완전히 채움(2,8). 원자가 전자 없음(안정)."},{"z":11,"en_val":0.93,"mp":97.8,"bp":883,"density":0.971,"state":"고체","year":1807,"ar":186,"ie":496,"use":"소금(NaCl), 베이킹소다, 나트륨등","tip":"알칼리금속. 물과 격렬 반응, 수소 발생. 원자가 전자 1개(M꺽질)."},{"z":12,"en_val":1.31,"mp":650,"bp":1091,"density":1.738,"state":"고체","year":1755,"ar":160,"ie":738,"use":"불꽃놀이, 항공기 합금, 마그네시움 보충제","tip":"알칼리토금속. 공기 중 밝게 연소(흔빛). 원자가 전자 2개."},{"z":13,"en_val":1.61,"mp":660.3,"bp":2519,"density":2.698,"state":"고체","year":1825,"ar":143,"ie":577,"use":"음료 캔, 항공기, 냄비, 호일","tip":"기타금속. 가볍고 내식성 강함. 지구 지각에서 가장 풍부한 금속."},{"z":14,"en_val":1.9,"mp":1414,"bp":3265,"density":2.329,"state":"고체","year":1824,"ar":117,"ie":786,"use":"반도체 칩, 태양전지, 유리, 시멘트","tip":"준금속. IT 산업의 핵심. 반도체 성질. 원자가 전자 4개."},{"z":15,"en_val":2.19,"mp":44.2,"bp":281,"density":1.82,"state":"고체","year":1669,"ar":110,"ie":1012,"use":"성낙, 비료, DNA, ATP, 밀·치아","tip":"비금속. 생명체 필수. DNA·ATP·바능 구성."},{"z":16,"en_val":2.58,"mp":115.2,"bp":444.6,"density":2.067,"state":"고체","year":-2000,"ar":103,"ie":1000,"use":"화약, 고무 가황, 황산(H₂SO₄), 의약품","tip":"비금속. 화산에서 발견(노란색). 황산(산업의 왕)의 원료."},{"z":17,"en_val":3.16,"mp":-101.5,"bp":-34,"density":0.003214,"state":"기체","year":1774,"ar":99,"ie":1251,"use":"수돋물 소독, 표백제, PVC, 소금(NaCl)","tip":"할로겨. 소독·젫균. 자극적 냄새. 원자가 전자 7개."},{"z":18,"en_val":null,"mp":-189.4,"bp":-185.9,"density":0.001784,"state":"기체","year":1894,"ar":71,"ie":1521,"use":"전구, 용접 보호기체, 형광등","tip":"비활성기체. 공기의 0.93%. 완전 꺽질(2,8,8)."},{"z":19,"en_val":0.82,"mp":63.5,"bp":759,"density":0.862,"state":"고체","year":1807,"ar":227,"ie":419,"use":"바나나, 비료, 신경 신호(전해질)","tip":"알칼리금속. 물과 매우 격렬 반응. 원자가 전자 1개(N꺽질). 체내 전해질."},{"z":20,"en_val":1,"mp":842,"bp":1484,"density":1.54,"state":"고체","year":1808,"ar":197,"ie":590,"use":"바·치아, 우유, 시멘트, 대리석(CaCO₃)","tip":"알칼리토금속. 바·치아 주성분. 원자가 전자 2개(N꺽질). 체내 필수 미네랄."},{"z":21,"en_val":1.36,"mp":1541,"bp":2836,"density":2.985,"state":"고체","year":1879,"ar":162,"ie":633,"use":null,"tip":null},{"z":22,"en_val":1.54,"mp":1668,"bp":3287,"density":4.507,"state":"고체","year":1791,"ar":147,"ie":659,"use":"항공기, 의료 임플란트, 골프채","tip":null},{"z":23,"en_val":1.63,"mp":1910,"bp":3407,"density":6.11,"state":"고체","year":1830,"ar":132,"ie":650,"use":"강철 합금","tip":null},{"z":24,"en_val":1.66,"mp":1907,"bp":2671,"density":7.19,"state":"고체","year":1797,"ar":125,"ie":652,"use":"스테인리스강, 크롬 도금","tip":null},{"z":25,"en_val":1.55,"mp":1246,"bp":2061,"density":7.47,"state":"고체","year":1774,"ar":124,"ie":717,"use":"강철 합금, 건전지","tip":null},{"z":26,"en_val":1.83,"mp":1538,"bp":2862,"density":7.874,"state":"고체","year":-3500,"ar":124,"ie":762,"use":"철강, 철근콘크리트, 헤모글로빈(혈액)","tip":"전이금속. 지구 지각 4위. 자성 있음."},{"z":27,"en_val":1.88,"mp":1495,"bp":2927,"density":8.9,"state":"고체","year":1735,"ar":125,"ie":760,"use":"배터리, 청색 안료, 자석","tip":null},{"z":28,"en_val":1.91,"mp":1455,"bp":2730,"density":8.908,"state":"고체","year":1751,"ar":124,"ie":737,"use":"동전, 스테인리스강, 배터리","tip":null},{"z":29,"en_val":1.9,"mp":1084.6,"bp":2562,"density":8.96,"state":"고체","year":-8000,"ar":128,"ie":745,"use":"전선, 동전, 수도관","tip":"전이금속. 전기 전도성 은 다음."},{"z":30,"en_val":1.65,"mp":419.5,"bp":907,"density":7.134,"state":"고체","year":1746,"ar":122,"ie":906,"use":"도금, 건전지, 아연 보충제","tip":null},{"z":31,"en_val":1.81,"mp":29.8,"bp":2204,"density":5.91,"state":"고체","year":1875,"ar":122,"ie":579,"use":"LED, 반도체, 온도계","tip":null},{"z":32,"en_val":2.01,"mp":938.3,"bp":2833,"density":5.323,"state":"고체","year":1886,"ar":122,"ie":762,"use":"반도체, 광섬유","tip":null},{"z":33,"en_val":2.18,"mp":817,"bp":887,"density":5.727,"state":"고체","year":-2900,"ar":119,"ie":947,"use":"반도체(GaAs), 역사적 독약","tip":null},{"z":34,"en_val":2.55,"mp":221,"bp":685,"density":4.809,"state":"고체","year":1817,"ar":116,"ie":941,"use":"광전지, 프린터 드럼","tip":null},{"z":35,"en_val":2.96,"mp":-7.2,"bp":58.8,"density":3.122,"state":"액체","year":1826,"ar":114,"ie":1140,"use":"소독제, 난연제, 의약품","tip":"할로겨. 실온에서 액체인 유일한 비금속."},{"z":36,"en_val":null,"mp":-157.4,"bp":-153.2,"density":0.003749,"state":"기체","year":1898,"ar":88,"ie":1351,"use":"고출력 레이저, 특수 형광등","tip":null},{"z":37,"en_val":0.82,"mp":39.3,"bp":688,"density":1.532,"state":"고체","year":1861,"ar":248,"ie":403,"use":null,"tip":null},{"z":38,"en_val":0.95,"mp":777,"bp":1382,"density":2.64,"state":"고체","year":1790,"ar":215,"ie":549,"use":null,"tip":null},{"z":39,"en_val":1.22,"mp":1526,"bp":3336,"density":4.472,"state":"고체","year":1794,"ar":180,"ie":600,"use":null,"tip":null},{"z":40,"en_val":1.33,"mp":1855,"bp":4409,"density":6.511,"state":"고체","year":1789,"ar":160,"ie":640,"use":null,"tip":null},{"z":41,"en_val":1.6,"mp":2477,"bp":4744,"density":8.57,"state":"고체","year":1801,"ar":146,"ie":652,"use":null,"tip":null},{"z":42,"en_val":2.16,"mp":2623,"bp":4639,"density":10.22,"state":"고체","year":1781,"ar":139,"ie":685,"use":null,"tip":null},{"z":43,"en_val":1.9,"mp":2157,"bp":4265,"density":11.5,"state":"고체","year":1937,"ar":136,"ie":702,"use":null,"tip":null},{"z":44,"en_val":2.2,"mp":2334,"bp":4150,"density":12.37,"state":"고체","year":1844,"ar":134,"ie":711,"use":null,"tip":null},{"z":45,"en_val":2.28,"mp":1964,"bp":3695,"density":12.45,"state":"고체","year":1803,"ar":134,"ie":720,"use":null,"tip":null},{"z":46,"en_val":2.2,"mp":1555,"bp":2963,"density":12.023,"state":"고체","year":1803,"ar":137,"ie":805,"use":null,"tip":null},{"z":47,"en_val":1.93,"mp":961.8,"bp":2162,"density":10.49,"state":"고체","year":-4000,"ar":144,"ie":731,"use":"거울, 사진, 은식기, 항균","tip":"전이금속. 금속 중 전기 전도성 최고."},{"z":48,"en_val":1.69,"mp":321.1,"bp":767,"density":8.65,"state":"고체","year":1817,"ar":151,"ie":868,"use":null,"tip":null},{"z":49,"en_val":1.78,"mp":156.6,"bp":2072,"density":7.31,"state":"고체","year":1863,"ar":167,"ie":558,"use":null,"tip":null},{"z":50,"en_val":1.96,"mp":231.9,"bp":2602,"density":7.287,"state":"고체","year":-3000,"ar":140,"ie":709,"use":"땅납, 통조림 코팅, 청동(Cu+Sn)","tip":null},{"z":51,"en_val":2.05,"mp":630.6,"bp":1587,"density":6.685,"state":"고체","year":-3000,"ar":141,"ie":834,"use":null,"tip":null},{"z":52,"en_val":2.1,"mp":449.5,"bp":988,"density":6.232,"state":"고체","year":1782,"ar":137,"ie":869,"use":null,"tip":null},{"z":53,"en_val":2.66,"mp":113.7,"bp":184.3,"density":4.933,"state":"고체","year":1811,"ar":133,"ie":1008,"use":"소독제(요오드팅크), 갑상샘 호르몬","tip":"할로겨. 실온 고체 → 가열하면 승화. 보라색 기체."},{"z":54,"en_val":null,"mp":-111.8,"bp":-108,"density":0.005897,"state":"기체","year":1898,"ar":108,"ie":1170,"use":"섬광등, 마취제, 우주선 추진기","tip":null},{"z":55,"en_val":0.79,"mp":28.4,"bp":671,"density":1.879,"state":"고체","year":1860,"ar":265,"ie":376,"use":"원자시계(초의 기준)","tip":null},{"z":56,"en_val":0.89,"mp":727,"bp":1870,"density":3.594,"state":"고체","year":1808,"ar":222,"ie":503,"use":"불꽃 녹색, 의료 조영제","tip":null},{"z":57,"en_val":1.1,"mp":920,"bp":3464,"density":6.145,"state":"고체","year":1839,"ar":187,"ie":538,"use":null,"tip":null},{"z":58,"en_val":1.12,"mp":798,"bp":3443,"density":6.77,"state":"고체","year":1803,"ar":182,"ie":534,"use":null,"tip":null},{"z":59,"en_val":1.13,"mp":931,"bp":3520,"density":6.773,"state":"고체","year":1885,"ar":182,"ie":527,"use":null,"tip":null},{"z":60,"en_val":1.14,"mp":1021,"bp":3074,"density":7.007,"state":"고체","year":1885,"ar":181,"ie":533,"use":"강력한 영구 자석(NdFeB)","tip":null},{"z":61,"en_val":1.13,"mp":1042,"bp":3000,"density":7.26,"state":"고체","year":1945,"ar":183,"ie":540,"use":null,"tip":null},{"z":62,"en_val":1.17,"mp":1072,"bp":1794,"density":7.52,"state":"고체","year":1879,"ar":180,"ie":545,"use":null,"tip":null},{"z":63,"en_val":1.2,"mp":822,"bp":1529,"density":5.244,"state":"고체","year":1901,"ar":180,"ie":547,"use":"형광체 TV, 지폐 보안","tip":null},{"z":64,"en_val":1.2,"mp":1313,"bp":3273,"density":7.9,"state":"고체","year":1880,"ar":180,"ie":593,"use":"MRI 조영제","tip":null},{"z":65,"en_val":1.1,"mp":1356,"bp":3230,"density":8.229,"state":"고체","year":1843,"ar":177,"ie":566,"use":null,"tip":null},{"z":66,"en_val":1.22,"mp":1407,"bp":2567,"density":8.55,"state":"고체","year":1886,"ar":178,"ie":572,"use":null,"tip":null},{"z":67,"en_val":1.23,"mp":1461,"bp":2700,"density":8.795,"state":"고체","year":1878,"ar":176,"ie":581,"use":null,"tip":null},{"z":68,"en_val":1.24,"mp":1529,"bp":2868,"density":9.066,"state":"고체","year":1843,"ar":176,"ie":589,"use":null,"tip":null},{"z":69,"en_val":1.25,"mp":1545,"bp":1950,"density":9.321,"state":"고체","year":1879,"ar":176,"ie":596,"use":null,"tip":null},{"z":70,"en_val":1.1,"mp":824,"bp":1196,"density":6.965,"state":"고체","year":1878,"ar":194,"ie":603,"use":null,"tip":null},{"z":71,"en_val":1.27,"mp":1663,"bp":3402,"density":9.84,"state":"고체","year":1907,"ar":173,"ie":524,"use":null,"tip":null},{"z":72,"en_val":1.3,"mp":2233,"bp":4603,"density":13.31,"state":"고체","year":1923,"ar":159,"ie":654,"use":null,"tip":null},{"z":73,"en_val":1.5,"mp":3017,"bp":5458,"density":16.69,"state":"고체","year":1802,"ar":146,"ie":761,"use":"커패시터, 수술기구","tip":null},{"z":74,"en_val":2.36,"mp":3422,"bp":5555,"density":19.3,"state":"고체","year":1783,"ar":139,"ie":770,"use":"전구 필라멘트, 초경합금 드릴","tip":"금속 중 녹는점 최고(3422도C)."},{"z":75,"en_val":1.9,"mp":3186,"bp":5590,"density":21.02,"state":"고체","year":1925,"ar":137,"ie":760,"use":null,"tip":null},{"z":76,"en_val":2.2,"mp":3033,"bp":5012,"density":22.59,"state":"고체","year":1803,"ar":135,"ie":840,"use":"만년필 촉","tip":"원소 중 밀도 최고(22.59 g/cm³)."},{"z":77,"en_val":2.2,"mp":2446,"bp":4428,"density":22.56,"state":"고체","year":1803,"ar":136,"ie":880,"use":null,"tip":null},{"z":78,"en_val":2.28,"mp":1768,"bp":3825,"density":21.45,"state":"고체","year":1735,"ar":138,"ie":870,"use":"촉매(자동차 배기), 보석","tip":null},{"z":79,"en_val":2.54,"mp":1064,"bp":2856,"density":19.32,"state":"고체","year":-6000,"ar":144,"ie":890,"use":"보석, 전자부품, 통화","tip":"반응성 매우 낙음. 순금속으로 자연에서 발견."},{"z":80,"en_val":2,"mp":-38.8,"bp":356.7,"density":13.534,"state":"액체","year":1500,"ar":151,"ie":1007,"use":"체온계(옛날), 형광등","tip":"금속 중 유일한 실온 액체. 독성 있음."},{"z":81,"en_val":1.62,"mp":304,"bp":1473,"density":11.85,"state":"고체","year":1861,"ar":170,"ie":589,"use":null,"tip":null},{"z":82,"en_val":2.33,"mp":327.5,"bp":1749,"density":11.34,"state":"고체","year":-6500,"ar":175,"ie":716,"use":"낙축전지, 방사선 차폐","tip":"독성 있음. 방사선 차단 능력 우수."},{"z":83,"en_val":2.02,"mp":271.4,"bp":1564,"density":9.807,"state":"고체","year":1500,"ar":156,"ie":703,"use":"위장약, 저온 합금","tip":null},{"z":84,"en_val":2,"mp":254,"bp":962,"density":9.196,"state":"고체","year":1898,"ar":167,"ie":812,"use":null,"tip":null},{"z":85,"en_val":2.2,"mp":302,"bp":337,"density":6.35,"state":"고체","year":1940,"ar":150,"ie":920,"use":null,"tip":null},{"z":86,"en_val":null,"mp":-71,"bp":-61.7,"density":0.00973,"state":"기체","year":1900,"ar":120,"ie":1037,"use":"건물 방사성 가스(건강 위험)","tip":null},{"z":87,"en_val":0.7,"mp":27,"bp":677,"density":1.87,"state":"고체","year":1939,"ar":null,"ie":380,"use":null,"tip":null},{"z":88,"en_val":0.9,"mp":700,"bp":1413,"density":5.5,"state":"고체","year":1898,"ar":null,"ie":509,"use":"방사선 암치료(역사적)","tip":null},{"z":89,"en_val":1.1,"mp":1050,"bp":3200,"density":10.07,"state":"고체","year":1899,"ar":null,"ie":499,"use":null,"tip":null},{"z":90,"en_val":1.3,"mp":1755,"bp":4788,"density":11.72,"state":"고체","year":1829,"ar":null,"ie":587,"use":"핵연료 후보","tip":null},{"z":91,"en_val":1.5,"mp":1568,"bp":4027,"density":15.37,"state":"고체","year":1913,"ar":null,"ie":568,"use":null,"tip":null},{"z":92,"en_val":1.38,"mp":1135,"bp":4131,"density":19.1,"state":"고체","year":1789,"ar":null,"ie":598,"use":"핵발전소 연료","tip":null},{"z":93,"en_val":1.36,"mp":644,"bp":4000,"density":20.25,"state":"고체","year":1940,"ar":null,"ie":605,"use":null,"tip":null},{"z":94,"en_val":1.28,"mp":640,"bp":3228,"density":19.7,"state":"고체","year":1940,"ar":null,"ie":585,"use":"핵무기, 원자력","tip":null},{"z":95,"en_val":1.13,"mp":1176,"bp":2607,"density":13.69,"state":"고체","year":1944,"ar":null,"ie":578,"use":"연기 감지기","tip":null},{"z":96,"en_val":1.28,"mp":1345,"bp":3110,"density":13.51,"state":"고체","year":1944,"ar":null,"ie":581,"use":null,"tip":null},{"z":97,"en_val":1.3,"mp":986,"bp":2627,"density":14.79,"state":"고체","year":1949,"ar":null,"ie":601,"use":null,"tip":null},{"z":98,"en_val":1.3,"mp":900,"bp":1470,"density":15.1,"state":"고체","year":1950,"ar":null,"ie":608,"use":null,"tip":null},{"z":99,"en_val":1.3,"mp":860,"bp":996,"density":8.84,"state":"고체","year":1952,"ar":null,"ie":619,"use":null,"tip":null},{"z":100,"en_val":1.3,"mp":1527,"bp":null,"density":null,"state":"고체","year":1952,"ar":null,"ie":627,"use":null,"tip":null},{"z":101,"en_val":1.3,"mp":827,"bp":null,"density":null,"state":"고체","year":1955,"ar":null,"ie":635,"use":null,"tip":null},{"z":102,"en_val":1.3,"mp":827,"bp":null,"density":null,"state":"고체","year":1958,"ar":null,"ie":642,"use":null,"tip":null},{"z":103,"en_val":null,"mp":1627,"bp":null,"density":null,"state":"고체","year":1961,"ar":null,"ie":470,"use":null,"tip":null},{"z":104,"en_val":null,"mp":2100,"bp":5500,"density":17,"state":"고체","year":1964,"ar":null,"ie":null,"use":null,"tip":null},{"z":105,"en_val":null,"mp":null,"bp":null,"density":21.6,"state":"고체","year":1970,"ar":null,"ie":null,"use":null,"tip":null},{"z":106,"en_val":null,"mp":null,"bp":null,"density":23.35,"state":"고체","year":1974,"ar":null,"ie":null,"use":null,"tip":null},{"z":107,"en_val":null,"mp":null,"bp":null,"density":26.1,"state":"고체","year":1981,"ar":null,"ie":null,"use":null,"tip":null},{"z":108,"en_val":null,"mp":null,"bp":null,"density":28,"state":"고체","year":1984,"ar":null,"ie":null,"use":null,"tip":null},{"z":109,"en_val":null,"mp":null,"bp":null,"density":27.5,"state":"고체","year":1982,"ar":null,"ie":null,"use":null,"tip":null},{"z":110,"en_val":null,"mp":null,"bp":null,"density":26.5,"state":"고체","year":1994,"ar":null,"ie":null,"use":null,"tip":null},{"z":111,"en_val":null,"mp":null,"bp":null,"density":22.6,"state":"고체","year":1994,"ar":null,"ie":null,"use":null,"tip":null},{"z":112,"en_val":null,"mp":null,"bp":null,"density":23.7,"state":"고체","year":1996,"ar":null,"ie":null,"use":null,"tip":null},{"z":113,"en_val":null,"mp":null,"bp":null,"density":null,"state":"고체","year":2003,"ar":null,"ie":null,"use":null,"tip":null},{"z":114,"en_val":null,"mp":null,"bp":null,"density":11.4,"state":"고체","year":1998,"ar":null,"ie":null,"use":null,"tip":null},{"z":115,"en_val":null,"mp":null,"bp":null,"density":null,"state":"고체","year":2003,"ar":null,"ie":null,"use":null,"tip":null},{"z":116,"en_val":null,"mp":null,"bp":null,"density":12.9,"state":"고체","year":2000,"ar":null,"ie":null,"use":null,"tip":null},{"z":117,"en_val":null,"mp":null,"bp":null,"density":null,"state":"고체","year":2010,"ar":null,"ie":null,"use":null,"tip":null},{"z":118,"en_val":null,"mp":null,"bp":null,"density":7,"state":"고체","year":2002,"ar":null,"ie":null,"use":null,"tip":null}];
+const EXTRA_BY_Z = {};
+EXTRA_RAW.forEach(e=>{ EXTRA_BY_Z[e.z]=e; });
+RAW.forEach(el=>{
+  const ex = EXTRA_BY_Z[el.z];
+  if(ex) Object.assign(el, ex);
+});
+
 const CATS = {
   'alkali-metal':[3,11,19,37,55,87],
   'alkaline-earth':[4,12,20,38,56,88],
@@ -908,6 +1006,45 @@ const GROUP_DESC = {
   17:'17족(할로젠): 최외각 전자 7개 — 반응성이 매우 크고 다른 원소와 잘 결합해요.',
   18:'18족(비활성 기체): 최외각 전자가 꽉 차 있어 매우 안정하고 반응을 잘 하지 않아요.'
 };
+
+// ---------- 진행상황 저장 (localStorage) ----------
+const PROGRESS_KEY = 'ptExplorer_progress_v1';
+const PSTATE = { viewed:[], escapeCompletions:0, escapeBestTime:null, missionsCompleted:0 };
+
+function loadProgress(){
+  try{
+    const raw = localStorage.getItem(PROGRESS_KEY);
+    if(raw) Object.assign(PSTATE, JSON.parse(raw));
+  }catch(e){ /* localStorage 미지원 환경이면 그냥 세션 내에서만 진행 */ }
+}
+function saveProgress(){
+  try{ localStorage.setItem(PROGRESS_KEY, JSON.stringify(PSTATE)); }catch(e){}
+}
+function markViewed(z){
+  if(!PSTATE.viewed.includes(z)){ PSTATE.viewed.push(z); saveProgress(); }
+  renderProgressStrip();
+}
+function renderProgressStrip(){
+  document.getElementById('psViewed').textContent = PSTATE.viewed.length;
+  document.getElementById('psEscape').textContent = PSTATE.escapeCompletions;
+  document.getElementById('psMission').textContent = PSTATE.missionsCompleted;
+  const bestEl = document.getElementById('psBest');
+  if(PSTATE.escapeBestTime!=null){
+    const m = String(Math.floor(PSTATE.escapeBestTime/60)).padStart(2,'0');
+    const s = String(PSTATE.escapeBestTime%60).padStart(2,'0');
+    bestEl.textContent = ` (최고 ${m}:${s})`;
+  } else {
+    bestEl.textContent = '';
+  }
+}
+document.getElementById('psReset').addEventListener('click', ()=>{
+  if(confirm('학습 진행 상황(본 원소, 방탈출 기록, 미션 성공 횟수)을 모두 초기화할까요?')){
+    PSTATE.viewed = []; PSTATE.escapeCompletions = 0; PSTATE.escapeBestTime = null; PSTATE.missionsCompleted = 0;
+    saveProgress();
+    renderProgressStrip();
+  }
+});
+loadProgress();
 
 // ---------- 테이블 그리기 ----------
 const table = document.getElementById('ptable');
@@ -986,6 +1123,7 @@ function selectElement(z){
   cellMap[z].classList.add('selected');
   selectHighlight(z);
   renderPanel(z);
+  markViewed(z);
 }
 
 function renderPanel(z){
@@ -1013,6 +1151,19 @@ function renderPanel(z){
     ruleHTML = `<div class="rule-box">같은 주기(${pos.period}주기) 원소들은 전자껍질 수가 같아요.</div>`;
   }
 
+  let extraHTML = '';
+  if(el.en_val !== undefined){
+    extraHTML = `
+    <div class="stat-grid" style="margin-top:2px;">
+      <div class="stat"><div class="label">전기음성도</div><div class="value">${el.en_val ?? '—'}</div></div>
+      <div class="stat"><div class="label">녹는점</div><div class="value">${el.mp!=null ? el.mp+'℃' : '—'}</div></div>
+      <div class="stat"><div class="label">밀도</div><div class="value">${el.density!=null ? el.density+' g/cm³' : '—'}</div></div>
+      <div class="stat"><div class="label">실온 상태</div><div class="value">${el.state ?? '—'}</div></div>
+    </div>
+    <div class="hi-note" style="margin-top:0;">📅 발견 연도: ${formatYear(el.year)}</div>`;
+  }
+  const useHTML = el.use ? `<div class="use-box">🔧 <b>일상 속 활용</b><br>${el.use}</div>` : '';
+
   panel.innerHTML = `
     <div class="panel-head">
       <div class="panel-sym cat-${cat}">${el.sym}</div>
@@ -1028,10 +1179,17 @@ function renderPanel(z){
       <div class="stat"><div class="label">주기</div><div class="value">${pos.period}주기</div></div>
       <div class="stat"><div class="label">족</div><div class="value">${groupLabel}</div></div>
     </div>
+    ${extraHTML}
+    ${useHTML}
     <div class="hi-note">👈 표에서 진하게 강조된 가로줄이 <b>주기</b>, 세로줄이 <b>족</b>이에요.</div>
     ${bohrHTML}
     ${ruleHTML}
   `;
+}
+
+function formatYear(year){
+  if(year==null) return '정보 없음';
+  return year < 0 ? `기원전 ${Math.abs(year)}년경` : `${year}년`;
 }
 
 function drawBohr(shells, cat){
@@ -1108,6 +1266,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
     if(btn.dataset.tab==='escape') startEscapeTimer();
     else stopEscapeTimer();
+    if(btn.dataset.tab==='trend') renderTrend();
   });
 });
 
@@ -1206,6 +1365,9 @@ function checkMission(){
     mt.textContent = `✅ 성공! ${missionTarget.kr}(${missionTarget.sym}) 중성 원자를 완성했어요!`;
     mt.classList.add('success');
     missionTarget = null;
+    PSTATE.missionsCompleted++;
+    saveProgress();
+    renderProgressStrip();
   }
 }
 document.getElementById('missionBtn').addEventListener('click', ()=>{
@@ -1445,6 +1607,12 @@ function finishEscape(){
   else if(escMissCount<=3 && escHintsLeft>=1){ rank='🥈'; title='훌륭한 탈출!'; }
   const m = String(Math.floor(escTimerSec/60)).padStart(2,'0');
   const s = String(escTimerSec%60).padStart(2,'0');
+
+  PSTATE.escapeCompletions++;
+  if(PSTATE.escapeBestTime==null || escTimerSec < PSTATE.escapeBestTime){ PSTATE.escapeBestTime = escTimerSec; }
+  saveProgress();
+  renderProgressStrip();
+
   document.getElementById('winCard').innerHTML = `
     <div class="win-rank">${rank}</div>
     <div class="win-title">${title}</div>
@@ -1511,6 +1679,126 @@ document.getElementById('sortByMass').addEventListener('click', function(){
   renderAnomalyRow(true);
 });
 renderAnomalyRow(false);
+
+// ================= 탐색기 히트맵 오버레이 =================
+const OVERLAY_RANGES = {
+  en_val: [[224,236,232],[44,110,99]],
+  mp:     [[253,236,220],[201,138,44]],
+  density:[[233,228,240],[124,58,163]],
+};
+const OVERLAY_STATE_COLORS = { '기체':'#5b7db1', '액체':'#4e9a8e', '고체':'#9c7bb0' };
+
+function overlayColorScale(t, from, to){
+  const r = Math.round(from[0]+(to[0]-from[0])*t);
+  const g = Math.round(from[1]+(to[1]-from[1])*t);
+  const b = Math.round(from[2]+(to[2]-from[2])*t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function applyOverlay(mode){
+  const legend = document.getElementById('overlayLegend');
+  if(mode==='cat'){
+    Object.values(cellMap).forEach(cell=>{ cell.style.background=''; });
+    legend.classList.remove('show'); legend.innerHTML='';
+    return;
+  }
+  if(mode==='state'){
+    Object.entries(cellMap).forEach(([z,cell])=>{
+      const el = elByZ(+z);
+      cell.style.background = OVERLAY_STATE_COLORS[el.state] || '#c7d0cb';
+    });
+    legend.classList.add('show');
+    legend.innerHTML = `<span style="color:#5b7db1">■ 기체</span><span style="color:#4e9a8e">■ 액체</span><span style="color:#9c7bb0">■ 고체</span>`;
+    return;
+  }
+  const vals = RAW.map(e=>e[mode]).filter(v=>v!=null);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const colors = OVERLAY_RANGES[mode] || [[230,230,230],[60,60,60]];
+  Object.entries(cellMap).forEach(([z,cell])=>{
+    const el = elByZ(+z);
+    const v = el[mode];
+    if(v==null){ cell.style.background = '#dcdfdd'; return; }
+    const t = (v-min)/((max-min)||1);
+    cell.style.background = overlayColorScale(t, colors[0], colors[1]);
+  });
+  legend.classList.add('show');
+  legend.innerHTML = `<span>${min}</span><div class="overlay-gradient" style="background:linear-gradient(90deg, ${overlayColorScale(0,colors[0],colors[1])}, ${overlayColorScale(1,colors[0],colors[1])})"></div><span>${max}</span>`;
+}
+document.getElementById('overlaySelect').addEventListener('change', (e)=> applyOverlay(e.target.value));
+
+// ================= 트렌드 차트 =================
+const CAT_HEX = {
+  'alkali-metal':'#d65f5f','alkaline-earth':'#e0a458','transition-metal':'#5b7db1',
+  'post-transition':'#7a9e7e','metalloid':'#9c7bb0','nonmetal':'#4e9a8e','halogen':'#d4a537',
+  'noble-gas':'#6e6e9e','lanthanide':'#c97ba0','actinide':'#8e7355','unknown':'#9aa3ab'
+};
+const PROP_LABEL = { en_val:'전기음성도 (Pauling)', ar:'원자 반지름 (pm)', ie:'제1 이온화 에너지 (kJ/mol)', mp:'녹는점 (℃)', density:'밀도 (g/cm³)' };
+const TREND_INSIGHTS = {
+  en_val: '⚡ <b>전기음성도</b>: 같은 주기에서는 오른쪽으로 갈수록 대체로 커지고(비금속성 강해짐), 같은 족에서는 아래로 갈수록 작아져요. 그래프에서 막대 높이가 톱니처럼 오르내리는 걸 확인해 보세요.',
+  ar: '📏 <b>원자 반지름</b>: 같은 주기에서는 오른쪽으로 갈수록 작아지고, 같은 족에서는 아래로 갈수록 커져요(전자 껍질이 늘어나서). 주기가 바뀌는 지점마다 갑자기 커지는 걸 볼 수 있어요.',
+  ie: '⚡ <b>이온화 에너지</b>: 같은 주기에서는 오른쪽으로 갈수록 대체로 커져요. 18족(비활성 기체)이 가장 크고 1족(알칼리 금속)이 가장 작아요 — 이온화 에너지가 작을수록 반응성이 큰 금속이에요.',
+  mp: '🌡️ <b>녹는점</b>: 금속은 대체로 높고, 비금속 기체(비활성 기체·할로젠)는 매우 낮아요. 같은 금속이라도 종류에 따라 차이가 크니 그래프에서 직접 비교해 보세요.',
+  density: '⚖️ <b>밀도</b>: 전이 금속이 대체로 높은 편이에요. 리튬(Li)은 물보다도 가벼운 금속이랍니다(0.53 g/cm³).',
+};
+let trendChartInstance = null;
+
+function renderTrend(){
+  if(typeof Chart === 'undefined') return;
+  const propKey = document.getElementById('trProp').value;
+  const range = document.getElementById('trRange').value;
+  const filterV = document.getElementById('trFilter').value;
+
+  let elems = RAW.filter(e => range==='118' ? true : e.z <= +range);
+  if(filterV==='g1') elems = elems.filter(e=>catOf(e.z)==='alkali-metal');
+  else if(filterV==='g2') elems = elems.filter(e=>catOf(e.z)==='alkaline-earth');
+  else if(filterV==='g17') elems = elems.filter(e=>catOf(e.z)==='halogen');
+  else if(filterV==='g18') elems = elems.filter(e=>catOf(e.z)==='noble-gas');
+  else if(filterV==='p2') elems = elems.filter(e=>getPosition(e.z).period===2);
+  else if(filterV==='p3') elems = elems.filter(e=>getPosition(e.z).period===3);
+  elems = elems.filter(e => e[propKey]!=null).sort((a,b)=>a.z-b.z);
+
+  const labels = elems.map(e=>`${e.z}${e.sym}`);
+  const data = elems.map(e=>e[propKey]);
+  const colors = elems.map(e=>CAT_HEX[catOf(e.z)]);
+
+  if(trendChartInstance){ trendChartInstance.destroy(); trendChartInstance=null; }
+  const ctx = document.getElementById('trendChart');
+  trendChartInstance = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[{ data, backgroundColor:colors, borderRadius:4 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          callbacks:{
+            title:(items)=>{ const e=elems[items[0].dataIndex]; return `${e.sym} ${e.kr} (${e.z}번)`; },
+            label:(item)=> `${PROP_LABEL[propKey]}: ${item.raw}`
+          }
+        }
+      },
+      scales:{
+        y:{ beginAtZero:false, grid:{color:'#e5e9e7'}, ticks:{color:'#5a6572', font:{size:10}} },
+        x:{ grid:{display:false}, ticks:{color:'#5a6572', font:{size:9}, maxRotation:0} }
+      },
+      onClick:(ev, items)=>{
+        if(items.length>0){
+          const e = elems[items[0].index];
+          document.querySelector('.tab-btn[data-tab="explorer"]').click();
+          selectElement(e.z);
+          cellMap[e.z].scrollIntoView({behavior:'smooth', block:'center'});
+        }
+      }
+    }
+  });
+  document.getElementById('trendInsight').innerHTML = TREND_INSIGHTS[propKey] || '';
+}
+['trProp','trRange','trFilter'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', renderTrend);
+});
+
+// ================= 최종 초기화 =================
+renderProgressStrip();
 </script>
 </body>
 </html>
