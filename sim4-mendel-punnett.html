@@ -3,1458 +3,788 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>멘델의 가설 검증 유전 실험실</title>
+  <title>멘델의 가설 검증 유전 실험실 v2</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #06091c; }
-    ::-webkit-scrollbar { width: 6px; }
+    body { background: #06091c; color: #e2e8f0; font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 15px; }
+    ::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar-track { background: #0F172A; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+
+    .container { max-width: 820px; margin: 0 auto; padding: 24px 16px; }
+    .panel { background: rgba(255,255,255,0.02); border: 2px solid rgba(167,139,250,0.2); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+
+    .panel-subtitle { font-size: 13px; color: #c4b5fd; margin-bottom: 8px; font-weight: 800; letter-spacing: 1.5px; text-align: center; }
+    .panel-title { font-size: 22px; font-weight: 900; color: #fff; margin-bottom: 20px; text-align: center; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+    .text-body { font-size: 15px; color: #94a3b8; line-height: 1.6; word-break: keep-all; }
+    .text-highlight { color: #facc15; font-weight: 800; font-size: 1.1em; }
+    .text-large { font-size: 18px; font-weight: 800; color: #38bdf8; line-height: 1.5; }
+
+    .btn { padding: 14px 24px; border: none; border-radius: 10px; font-weight: 800; font-size: 16px; cursor: pointer; color: #fff; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.3); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-blue { background: linear-gradient(135deg,#0ea5e9,#4f46e5); }
+    .btn-pink { background: linear-gradient(135deg,#c084fc,#ec4899); }
+    .btn-green { background: linear-gradient(135deg,#22c55e,#0d9488); }
+    .btn-outline { background: rgba(30,41,59,0.5); border: 2px solid rgba(148,163,184,0.4); color: #f8fafc; font-size: 15px; }
+    .btn-outline.selected { border-color: #4ade80; background: rgba(74,222,128,0.2); box-shadow: 0 0 15px rgba(74,222,128,0.3); }
+    .btn-outline.wrong { border-color: #f87171; background: rgba(248,113,113,0.2); }
+    .btn:focus-visible, .btn-outline:focus-visible { outline: 3px solid #38bdf8; outline-offset: 2px; }
+
+    .result-box { background: rgba(56,189,248,0.08); border: 2px solid rgba(56,189,248,0.3); border-radius: 12px; padding: 20px; margin-top: 20px; font-size: 16px; line-height: 1.7; color: #e0f2fe; }
+    .feedback-box { border-radius: 10px; padding: 14px 16px; margin-top: 12px; font-size: 14px; line-height: 1.6; text-align: left; }
+    .feedback-wrong { background: rgba(248,113,113,0.1); border-left: 4px solid #f87171; color: #fecaca; }
+    .feedback-correct { background: rgba(74,222,128,0.1); border-left: 4px solid #4ade80; color: #dcfce7; }
+
+    .pop { animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    @keyframes pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    .fade-in { animation: fadeIn 0.6s ease-out forwards; }
+    @keyframes fadeIn { 0% { opacity: 0; transform: translateY(15px); } 100% { opacity: 1; transform: translateY(0); } }
+    @media (prefers-reduced-motion: reduce) { .pop, .fade-in { animation: none; } }
   </style>
 </head>
 <body>
   <div id="root"></div>
   <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useEffect, useMemo, useReducer, useRef } = React;
 
-
-/* ══════════════════════════════════════════════════
-   멘델의 가설 검증 실험실 (버그 수정판)
-   0막 순종 분리실 (해석적 비율 계산 — 거대 배열 없이 정확하고 가벼움)
-   1막 우열의 원리 (순종 RR × rr 교배 및 우성 발현)
-   2막 분리의 법칙 (F1 자가수분, 3:1 분리)
-   3막 독립의 법칙 (양성잡종 독립 분리, 9:3:3:1)
-══════════════════════════════════════════════════ */
-
-/* ── 완두콩 비주얼 (SVG) ──────────────────────────── */
-function Pea({ round, yellow = true, neutral = false, size = 34 }) {
-  const fill = neutral ? (round ? "#e0b97d" : "#d4a373") : (yellow ? "#facc15" : "#4ade80");
-  const dark = neutral ? "#8a5a2b" : (yellow ? "#a16207" : "#15803d");
-
-  if (round) {
-    return (
-      <svg width={size} height={size} viewBox="0 0 40 40" style={{ overflow: "visible" }}>
-        <circle cx="20" cy="20" r="17" fill={fill} stroke={dark} strokeWidth="1.5" />
-        <ellipse cx="14" cy="13" rx="5" ry="3.5" fill="#fff" opacity="0.4" />
-      </svg>
-    );
-  }
-  return (
-    <svg width={size} height={size} viewBox="0 0 40 40" style={{ overflow: "visible" }}>
-      <path
-        d="M20,4 C26,3 31,7 33,13 C36,16 35,22 31,25 C32,31 26,36 20,34
-           C14,37 7,32 8,26 C4,23 4,16 8,12 C9,6 14,4 20,4 Z"
-        fill={fill} stroke={dark} strokeWidth="1.5"
-      />
-      {[[14,14],[24,12],[28,22],[15,26],[22,24],[12,21]].map(([cx,cy],i) => (
-        <circle key={i} cx={cx} cy={cy} r="1.8" fill={dark} opacity="0.5" />
-      ))}
-    </svg>
-  );
-}
-
-function GenotypeLabel({ text, fontSize = 11 }) {
-  return (
-    <div style={{ fontSize, fontFamily: "monospace", letterSpacing: 0.5, fontWeight: 700 }}>
-      {text.split("").map((char, i) => {
-        const isUpper = char === char.toUpperCase();
-        return <span key={i} style={{ color: isUpper ? "#ffffff" : "#64748b" }}>{char}</span>;
-      })}
-    </div>
-  );
-}
-
-function Btn({ children, onClick, disabled, style: ex }) {
-  return (
-    <button onClick={onClick} disabled={disabled} style={{
-      padding: "10px 18px", border: "none", borderRadius: 8, fontWeight: 700,
-      fontSize: 13, cursor: disabled ? "not-allowed" : "pointer", color: "#fff",
-      opacity: disabled ? 0.35 : 1, fontFamily: "inherit", transition: "all 0.2s", ...ex,
-    }}>{children}</button>
-  );
-}
-
-/* ── 라벨 없는 수확물 그리드 (귀납적 관찰용) ─────── */
-function HarvestGrid({ items, size = 24 }) {
-  return (
-    <div style={{
-      display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 7,
-      maxWidth: 300, margin: "0 auto", background: "rgba(0,0,0,0.15)",
-      padding: 12, borderRadius: 10,
-    }}>
-      {items.map((it, i) => (
-        <Pea key={i} round={it.round} yellow={it.yellow} neutral={it.yellow === undefined} size={size} />
-      ))}
-    </div>
-  );
-}
-
-/* ── 배열 셔플 (표시 순서만 무작위화, 개수는 고정) ── */
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-/* ── 객관식 선택 → 스스로 규칙을 추론하게 하는 컴포넌트 ── */
-function ChoiceButtons({ options, correctIndex, onCorrect, correctFeedback }) {
-  const [picked, setPicked] = useState(null);
-  const [confirmed, setConfirmed] = useState(false);
-  const isCorrect = picked === correctIndex;
-
-  useEffect(() => {
-    if (isCorrect && !confirmed) {
-      setConfirmed(true);
-      onCorrect && onCorrect();
+    /* ── 완두콩 비주얼 (색각 이상 대응: 패턴 + 라벨 병기) ── */
+    function Pea({ round, yellow = true, neutral = false, size = 50, label, className = "" }) {
+      const fill = neutral ? (round ? "#e0b97d" : "#d4a373") : (yellow ? "#facc15" : "#4ade80");
+      const dark = neutral ? "#8a5a2b" : (yellow ? "#a16207" : "#15803d");
+      const patId = "pat-" + (yellow ? "y" : "g") + "-" + (round ? "r" : "w");
+      return (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <svg className={className} width={size} height={size} viewBox="0 0 40 40" style={{ overflow: "visible" }}>
+            <defs>
+              <pattern id={patId} width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+                <rect width="6" height="6" fill={fill} />
+                {!neutral && !yellow && <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />}
+                {!neutral && yellow && <circle cx="3" cy="3" r="0.8" fill="rgba(255,255,255,0.4)" />}
+              </pattern>
+            </defs>
+            {round ? (
+              <circle cx="20" cy="20" r="17" fill={`url(#${patId})`} stroke={dark} strokeWidth="2" />
+            ) : (
+              <path d="M20,4 C26,3 31,7 33,13 C36,16 35,22 31,25 C32,31 26,36 20,34 C14,37 7,32 8,26 C4,23 4,16 8,12 C9,6 14,4 20,4 Z" fill={`url(#${patId})`} stroke={dark} strokeWidth="2" />
+            )}
+            {!round && [[14,14],[24,12],[28,22],[15,26],[22,24],[12,21]].map(([cx,cy],i) => (
+              <circle key={i} cx={cx} cy={cy} r="2" fill={dark} opacity="0.5" />
+            ))}
+          </svg>
+          {label && <div style={{ fontSize: Math.max(10, size * 0.24), fontWeight: 800, color: "#e2e8f0", marginTop: 2 }}>{label}</div>}
+        </div>
+      );
     }
-  }, [isCorrect]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: picked !== null ? 10 : 4 }}>
-        {options.map((opt, i) => {
-          const selected = picked === i;
-          const showWrong = selected && !isCorrect;
-          const showRight = selected && isCorrect;
-          return (
-            <button
-              key={i}
-              onClick={() => setPicked(i)}
-              disabled={isCorrect}
-              style={{
-                padding: "9px 15px", borderRadius: 8, cursor: isCorrect ? "default" : "pointer",
-                border: showRight ? "1.5px solid #4ade80" : showWrong ? "1.5px solid #f87171" : "1px solid rgba(148,163,184,0.3)",
-                background: showRight ? "rgba(74,222,128,0.15)" : showWrong ? "rgba(248,113,113,0.15)" : "rgba(255,255,255,0.03)",
-                color: "#e2e8f0", fontSize: 12.5, fontWeight: 700, fontFamily: "inherit",
-              }}
-            >
-              {opt}
-            </button>
-          );
-        })}
-      </div>
-      {picked !== null && !isCorrect && (
-        <div style={{ fontSize: 11, color: "#fca5a5", textAlign: "center", marginBottom: 6 }}>
-          🤔 다시 한 번 살펴볼까요? 위 숫자들을 잘 비교해보세요.
-        </div>
-      )}
-      {isCorrect && (
-        <div style={{
-          fontSize: 12, color: "#86efac", textAlign: "center", lineHeight: 1.7,
-          background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.2)",
-          borderRadius: 10, padding: "10px 13px", marginTop: 4,
-        }}>
-          ✅ {correctFeedback}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════
-   0막 — 순종 고정 분리실
-   [버그 수정 ③] 거대 배열을 누적 증식시키지 않고, 세대별 비율을
-   해석적으로 계산한다 (Rr 비율 = (1/2)^gen). 메모리·연산 부담 없음.
-   [버그 수정 ②] "완전 소멸"이라는 과장된 메시지 대신, 비율이
-   점근적으로 줄어들 뿐 0이 되지 않는다는 사실을 정직하게 안내.
-══════════════════════════════════════════════════ */
-function Act0PureLine({ onComplete }) {
-  const [gen, setGen] = useState(0);
-  const [isAnimate, setIsAnimate] = useState(false);
-  const [pnFilled, setPnFilled] = useState([]);
-  const ALLELES2 = ["R", "r"];
-  const MAX_GEN = 5;
-
-  // 해석적 계산: Rr 비율은 매 세대 정확히 절반(1/2)^gen,
-  // 남은 절반은 RR과 rr에 균등하게 나뉜다.
-  const hybridFrac = Math.pow(0.5, gen);
-  const homoFrac = (1 - hybridFrac) / 2; // RR 비율 = rr 비율
-
-  const handleSelfPollination = () => {
-    if (gen >= MAX_GEN) return;
-    setIsAnimate(true);
-    setTimeout(() => {
-      setGen(g => g + 1);
-      setIsAnimate(false);
-    }, 400);
-  };
-
-  // 화면 표시용 16칸은 현재 비율에 따라 가중 무작위로 뽑는다 (연출용, 실제 데이터는 비율로 관리)
-  const displayPool = useMemo(() => {
-    const arr = [];
-    for (let i = 0; i < 16; i++) {
-      const r = Math.random();
-      if (r < homoFrac) arr.push("RR");
-      else if (r < homoFrac + hybridFrac) arr.push("Rr");
-      else arr.push("rr");
-    }
-    return arr;
-  }, [gen]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const togglePn = (idx) => {
-    setPnFilled(f => f.includes(idx) ? f.filter(i => i !== idx) : [...f, idx]);
-  };
-  const pnCounts = useMemo(() => {
-    const c = { RR: 0, Rr: 0, rr: 0 };
-    pnFilled.forEach(idx => {
-      const r = Math.floor(idx / 2), col = idx % 2;
-      const combo = [ALLELES2[r], ALLELES2[col]].sort((a,b)=>a==="R"?-1:1).join("");
-      c[combo] = (c[combo] || 0) + 1;
-    });
-    return c;
-  }, [pnFilled]);
-  const pnAllDone = pnFilled.length === 4;
-
-  const hybridPct = hybridFrac * 100;
-  const homoPct = homoFrac * 100;
-  const stopped = gen >= MAX_GEN;
-
-  return (
-    <div style={{
-      background: "rgba(255,255,255,0.018)", border: "1px solid rgba(167,139,250,0.2)",
-      borderRadius: 14, padding: "16px", marginBottom: 14,
-    }}>
-      <div style={{ fontSize: 10, color: "#cbd5e1", marginBottom: 4, textAlign: "center", fontWeight: 700, letterSpacing: 2 }}>
-        사전 준비 — 실험에 사용할 '순종' 완두콩은 어떻게 얻을까?
-      </div>
-      <div style={{ fontSize: 14, fontWeight: 800, color: "#a78bfa", textAlign: "center", marginBottom: 6 }}>
-        0막 · 자가수분을 통한 순종 분리 (Pure-line Selection)
-      </div>
-      <p style={{ fontSize: 11.5, color: "#64748b", textAlign: "center", margin: "0 auto 14px", maxWidth: 520, lineHeight: 1.5 }}>
-        겉모습이 둥글더라도 속에는 주름진 유전자(r)가 숨어있을 수 있습니다. 멘델은 완두를
-        <strong> 여러 세대 동안 자가수분</strong>하여 유전자가 한 가지로만 고정된 <strong>순종</strong>을 확보한 뒤
-        비로소 실험을 시작했습니다.
-      </p>
-
-      {/* 🧮 미니 퍼넷 사각형 — 자가수분 1개체의 결과를 직접 검증 */}
-      <div style={{
-        background: "rgba(0,0,0,0.15)", border: "1px solid rgba(167,139,250,0.18)",
-        borderRadius: 12, padding: "14px", marginBottom: 18, textAlign: "center",
-      }}>
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: "#a78bfa", marginBottom: 4 }}>
-          🧮 먼저 손으로 확인해보기 — Rr 한 개체가 자가수분하면?
-        </div>
-        <div style={{ fontSize: 10, color: "#64748b", marginBottom: 12 }}>
-          아래 4칸을 직접 클릭해서 채워보세요. 시뮬레이션이 매 세대 적용하는 계산과 똑같습니다.
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: `42px repeat(2, 1fr)`, gap: 5 }}>
-              <div></div>
-              {ALLELES2.map(g => (
-                <div key={g} style={{
-                  width: 46, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
-                  background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.3)",
-                  borderRadius: 6, fontSize: 11.5, fontWeight: 700, color: "#c4b5fd",
-                }}>♂{g}</div>
-              ))}
+    function TrendChart({ data }) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '16px', height: '180px', margin: '30px 0', borderBottom: '2px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
+          {data.map((val, idx) => (
+            <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '50px' }}>
+              <span style={{ fontSize: '14px', fontWeight: '800', color: '#a78bfa', marginBottom: '8px' }}>{val.toFixed(1)}%</span>
+              <div style={{ width: '100%', backgroundColor: 'rgba(167,139,250,0.6)', height: `${(val / 100) * 120}px`, borderRadius: '6px 6px 0 0', transition: 'height 0.4s' }}></div>
+              <span style={{ fontSize: '13px', color: '#94a3b8', marginTop: '8px', fontWeight: '700' }}>{idx}세대</span>
             </div>
-            {ALLELES2.map((rowG, ri) => (
-              <div key={rowG} style={{ display: "grid", gridTemplateColumns: `42px repeat(2, 1fr)`, gap: 5, marginTop: 5 }}>
-                <div style={{
-                  width: 42, height: 46, display: "flex", alignItems: "center", justifyContent: "center",
-                  background: "rgba(244,114,182,0.12)", border: "1px solid rgba(244,114,182,0.3)",
-                  borderRadius: 6, fontSize: 11.5, fontWeight: 700, color: "#f9a8d4",
-                }}>♀{rowG}</div>
-                {ALLELES2.map((colG, ci) => {
-                  const idx = ri * 2 + ci;
-                  const isFilled = pnFilled.includes(idx);
-                  const combo = [rowG, colG].sort((a,b)=>a==="R"?-1:1).join("");
-                  const round = combo.includes("R");
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => togglePn(idx)}
-                      style={{
-                        width: 46, height: 46,
-                        background: isFilled ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.01)",
-                        border: isFilled ? "1.5px solid #38bdf8" : "1px solid rgba(80,135,200,0.15)",
-                        borderRadius: 6, display: "flex", flexDirection: "column", cursor: "pointer",
-                        alignItems: "center", justifyContent: "center", transition: "all 0.2s",
-                      }}
-                    >
-                      {isFilled ? (
-                        <>
-                          <Pea round={round} neutral size={20} />
-                          <GenotypeLabel text={combo} fontSize={8.5} />
-                        </>
-                      ) : (
-                        <div style={{ fontSize: 13, color: "#223b59" }}>?</div>
-                      )}
-                    </button>
-                  );
-                })}
+          ))}
+        </div>
+      );
+    }
+
+    /* ── 가설 검증 박스: 선택지별 개별 피드백 제공 (오개념 교정) ── */
+    function HypothesisBox({ question, counterFactual, options, onCorrect }) {
+      // options: [{ text, correct: bool, feedback: string }]
+      const [picked, setPicked] = useState(null);
+      const isCorrect = picked !== null && options[picked].correct;
+
+      useEffect(() => { if (isCorrect) { const t = setTimeout(onCorrect, 900); return () => clearTimeout(t); } }, [isCorrect]);
+
+      return (
+        <div className="panel fade-in" style={{ borderColor: "rgba(56,189,248,0.5)", background: "rgba(15,23,42,0.6)" }}>
+          <div style={{ background: "rgba(239,68,68,0.1)", borderLeft: "4px solid #ef4444", padding: "12px 16px", marginBottom: 20, textAlign: "left" }}>
+            <span style={{ color: "#fca5a5", fontWeight: 700, fontSize: 13, display: "block", marginBottom: 4 }}>[ 반사실적 가정 ]</span>
+            <span style={{ color: "#fee2e2", fontSize: 15, lineHeight: 1.5 }}>{counterFactual}</span>
+          </div>
+
+          <div className="text-large" style={{ marginBottom: 24 }}>🤔 {question}</div>
+
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", flexDirection: "column", alignItems: "stretch" }}>
+            {options.map((opt, i) => (
+              <div key={i} style={{ width: "100%" }}>
+                <button onClick={() => setPicked(i)} disabled={isCorrect}
+                  style={{ width: "100%", padding: "16px" }}
+                  className={`btn btn-outline ${picked === i ? (opt.correct ? 'selected' : 'wrong') : ''}`}>
+                  {opt.text}
+                </button>
+                {picked === i && (
+                  <div className={`feedback-box pop ${opt.correct ? 'feedback-correct' : 'feedback-wrong'}`}>
+                    {opt.correct ? '✅ ' : '❌ '}{opt.feedback}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
+      );
+    }
 
-        {!pnAllDone && (
-          <Btn onClick={() => setPnFilled([0,1,2,3])} style={{ background: "rgba(167,139,250,0.18)", color: "#c4b5fd", fontSize: 11, padding: "6px 12px" }}>
-            잘 모르겠다면 자동으로 채우기
-          </Btn>
-        )}
+    function PunnettCell({ isFilled, rowG, colG, onClick, resultLabel, isRound }) {
+      return (
+        <button onClick={onClick}
+          style={{ width: 100, height: 100, background: "rgba(255,255,255,0.03)", border: isFilled ? "3px solid #38bdf8" : "2px dashed rgba(148,163,184,0.3)", borderRadius: 12, display: "flex", flexDirection: "column", cursor: "pointer", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}>
+          {isFilled ? (
+            <div className="pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Pea round={isRound} neutral size={44} />
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginTop: 6, letterSpacing: 1 }}>{resultLabel}</div>
+            </div>
+          ) : <div style={{ fontSize: 32, color: "#475569", fontWeight: 900 }}>?</div>}
+        </button>
+      );
+    }
 
-        {pnAllDone && (
-          <div style={{
-            background: "rgba(56,189,248,0.07)", border: "1px solid rgba(56,189,248,0.2)",
-            borderRadius: 8, padding: "9px 12px", fontSize: 11.5, color: "#bae6fd", lineHeight: 1.6,
-          }}>
-            🎉 RR {pnCounts.RR || 0}칸 · Rr {pnCounts.Rr || 0}칸 · rr {pnCounts.rr || 0}칸 → <strong>1 : 2 : 1</strong> 확인!
-            <br />아래 시뮬레이션에서도 Rr 개체마다 이 비율 그대로 적용되어, 세대를 거듭할수록 잡종 비율이 절반씩 줄어듭니다.
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    // 이항분포 표본 추출 (실제 실험처럼 표본오차 반영)
+    function binomialSample(n, p) {
+      let successes = 0;
+      for (let i = 0; i < n; i++) if (Math.random() < p) successes++;
+      return successes;
+    }
+
+    /* ── 생식세포 분리 도식: 부모(정적) → 생식세포(1개 대립유전자만) → 결합 ── */
+    function GameteSplitDiagram({ parentGenotype, label }) {
+      const alleles = parentGenotype.split("");
+      const isSame = alleles[0] === alleles[1];
+      const round = parentGenotype.includes("R") && isSame ? parentGenotype === "RR" : null;
+      return (
+        <div style={{ textAlign: "center" }}>
+          <Pea round={parentGenotype[0] === "R" || parentGenotype === "RR"} neutral size={64} label={parentGenotype} />
+          <div style={{ fontSize: 12, color: "#94a3b8", margin: "6px 0", fontWeight: 700 }}>{label}</div>
+          <div style={{ fontSize: 20, color: "#64748b" }}>↓ 감수분열</div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 6 }}>
+            {alleles.map((a, i) => (
+              <div key={i} style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(56,189,248,0.15)", border: "2px solid rgba(56,189,248,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 16, color: "#7dd3fc" }}>{a}</div>
+            ))}
           </div>
-        )}
-      </div>
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>생식세포 (대립유전자 1개씩만 보유)</div>
+        </div>
+      );
+    }
 
-      {/* 완두콩 풀 시각화 매트릭스 */}
-      <div style={{ fontSize: 11, color: "#bae6fd", textAlign: "center", marginBottom: 6 }}>
-        {gen === 0 ? "🌱 초기 잡종 집단" : `✨ 현재 비율에 따라 무작위로 뽑은 16개 샘플`}
-      </div>
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 8,
-        maxWidth: 360, margin: "0 auto 16px", background: "rgba(0,0,0,0.15)",
-        padding: 12, borderRadius: 10, transition: "opacity 0.3s", opacity: isAnimate ? 0.4 : 1
-      }}>
-        {displayPool.map((gt, i) => (
-          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <Pea round={gt !== "rr"} neutral size={28} />
-            <span style={{ fontSize: 9, fontFamily: "monospace", marginTop: 2, color: gt === "Rr" ? "#a78bfa" : "#fff" }}>
-              {gt}
-            </span>
+    /* ══════════════════════════════════════════════════
+       0막 — 순종 고정 분리실
+    ══════════════════════════════════════════════════ */
+    function Act0PureLine({ onComplete }) {
+      const [gen, setGen] = useState(0);
+      const [trendData, setTrendData] = useState([100]);
+      const [principleSeen, setPrincipleSeen] = useState(false);
+      const MAX_GEN = 5;
+      const hybridFrac = Math.pow(0.5, gen);
+      const homoFrac = (1 - hybridFrac) / 2;
+
+      const handleSelfPollination = () => {
+        if (gen >= MAX_GEN) return;
+        setGen(g => g + 1);
+        setTrendData(prev => [...prev, Math.pow(0.5, gen + 1) * 100]);
+      };
+
+      const hybridPct = hybridFrac * 100;
+      const homoPct = homoFrac * 100;
+
+      return (
+        <div className="panel">
+          <div className="panel-subtitle">STEP 0. 실험 준비</div>
+          <div className="panel-title" style={{ color: "#a78bfa" }}>자가수분을 통한 순종 분리</div>
+          <p className="text-body" style={{ textAlign: "center", marginBottom: 20 }}>
+            우리가 눈으로 보는 '둥근 모양' 속에는 '주름진 유전자'가 숨어있을 수 있습니다. <br/>
+            정확한 교배 실험을 위해서는 유전자가 100% 동일한 <strong>'순종'</strong>을 만들어야 합니다.
+          </p>
+
+          {!principleSeen && (
+            <div className="fade-in" style={{ background: "rgba(0,0,0,0.25)", borderRadius: 14, padding: "20px", marginBottom: 24 }}>
+              <div className="text-large" style={{ textAlign: "center", marginBottom: 16 }}>🔍 왜 자가수분을 반복하면 잡종 비율이 절반씩 줄어들까요?</div>
+              <p className="text-body" style={{ textAlign: "center", marginBottom: 16 }}>
+                잡종(Rr)을 자가수분하는 것은 <strong>Rr × Rr</strong> 교배와 똑같습니다. 실제로 1세대만 교배해보면:
+              </p>
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: `70px repeat(2, 90px)`, gap: 8 }}>
+                  <div></div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, color: "#d8b4fe" }}>♂ R</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, color: "#d8b4fe" }}>♂ r</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, color: "#fbcfe8" }}>♀ R</div>
+                  <div style={{ padding: 10, borderRadius: 10, background: "rgba(74,222,128,0.12)", border: "2px solid rgba(74,222,128,0.4)", textAlign: "center", fontWeight: 900 }}>RR<div style={{ fontSize: 10, color: "#86efac", fontWeight: 700 }}>순종·고정</div></div>
+                  <div style={{ padding: 10, borderRadius: 10, background: "rgba(167,139,250,0.12)", border: "2px solid rgba(167,139,250,0.4)", textAlign: "center", fontWeight: 900 }}>Rr<div style={{ fontSize: 10, color: "#c4b5fd", fontWeight: 700 }}>잡종·계속 분리</div></div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, color: "#fbcfe8" }}>♀ r</div>
+                  <div style={{ padding: 10, borderRadius: 10, background: "rgba(167,139,250,0.12)", border: "2px solid rgba(167,139,250,0.4)", textAlign: "center", fontWeight: 900 }}>Rr<div style={{ fontSize: 10, color: "#c4b5fd", fontWeight: 700 }}>잡종·계속 분리</div></div>
+                  <div style={{ padding: 10, borderRadius: 10, background: "rgba(74,222,128,0.12)", border: "2px solid rgba(74,222,128,0.4)", textAlign: "center", fontWeight: 900 }}>rr<div style={{ fontSize: 10, color: "#86efac", fontWeight: 700 }}>순종·고정</div></div>
+                </div>
+              </div>
+              <div className="result-box" style={{ marginTop: 20 }}>
+                한 세대 만에 <span style={{ color: "#86efac", fontWeight: 800 }}>RR, rr(순종) 50%</span>는 유전자가 하나로 고정되어 이제 자가수분해도 항상 자기 자신만 나옵니다(더 이상 안 갈라짐).<br/>
+                반면 <span style={{ color: "#c4b5fd", fontWeight: 800 }}>Rr(잡종) 50%</span>는 다음 세대에 또 이 표를 그대로 반복하게 됩니다.<br/>
+                그래서 세대를 거듭할 때마다 <strong>남아있는 잡종의 절반씩</strong>만 순종으로 바뀌고, 잡종 비율은 정확히 <span className="text-highlight">1/2, 1/4, 1/8…</span>로 줄어드는 것입니다.
+              </div>
+              <div style={{ textAlign: "center", marginTop: 16 }}>
+                <button className="btn btn-blue" onClick={() => setPrincipleSeen(true)}>원리 이해했음 → 여러 세대 반복해보기</button>
+              </div>
+            </div>
+          )}
+
+          {principleSeen && (
+            <div className="fade-in">
+              <TrendChart data={trendData} />
+
+              <div style={{ display: "flex", justifyContent: "space-around", maxWidth: 600, margin: "0 auto 30px", textAlign: "center", background: "rgba(0,0,0,0.2)", padding: "20px", borderRadius: "12px" }}>
+                <div>
+                  <div style={{ color: "#fff", fontSize: 24, fontWeight: 900 }}>{homoPct.toFixed(1)}%</div>
+                  <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>순종 (RR / rr)</div>
+                </div>
+                <div style={{ borderLeft: "2px solid rgba(255,255,255,0.1)", paddingLeft: 40 }}>
+                  <div style={{ color: "#a78bfa", fontSize: 24, fontWeight: 900 }}>{hybridPct.toFixed(1)}%</div>
+                  <div style={{ color: "#c4b5fd", fontSize: 13, marginTop: 4 }}>잡종 (Rr)</div>
+                </div>
+              </div>
+
+              <div style={{ textAlign: "center" }}>
+                {gen < MAX_GEN ? (
+                  <button className="btn btn-blue" onClick={handleSelfPollination}>🔄 자가수분 진행 ({gen}세대)</button>
+                ) : (
+                  <div className="result-box fade-in">
+                    🎯 <strong>핵심 원리</strong>: 방금 확인한 Rr×Rr 퍼넷사각형이 매 세대 반복되면서, 남아있는 잡종의 절반씩만 순종으로 고정되어 잡종(Rr) 비율이 <span className="text-highlight">정확히 절반씩 감소</span>합니다.<br/>
+                    순종이 충분히 확보되었으므로, 이제 본격적인 교배 실험을 시작합니다.
+                    <div style={{ marginTop: 20 }}><button className="btn btn-pink" onClick={onComplete}>1막: 우열의 원리로 이동 →</button></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ══════════════════════════════════════════════════
+       1막 — 우열의 원리
+    ══════════════════════════════════════════════════ */
+    function Act1Dominance({ onComplete }) {
+      const [stage, setStage] = useState("hyp");
+
+      const options = [
+        { text: "부모의 형질이 반씩 섞여 '살짝 둥근' 중간 모양이 나온다", correct: false, feedback: "멘델의 완두는 '중간 유전'이 아니라 '완전 우성'을 보입니다. 두 대립유전자가 물리적으로 섞이는 것이 아니라, 각각 독립된 입자(유전자)로 존재하다가 하나만 겉으로 드러납니다." },
+        { text: "우성 형질인 둥근 모양만 겉으로 나타나고 주름 유전자는 유전자형 속에 숨는다", correct: true, feedback: "정확합니다. Rr은 유전자형에 r을 그대로 가지고 있지만, 겉모습(표현형)은 우성인 R의 효과만 드러납니다. 이것이 '우열의 원리'입니다." },
+        { text: "열성 유전자(r)가 세포에서 사라져 없어진다", correct: false, feedback: "유전자는 소멸되지 않습니다. r은 Rr 안에 그대로 남아있으며, 다음 세대에서 다시 나타날 수 있습니다. 이 내용은 2막에서 직접 확인합니다." },
+      ];
+
+      return (
+        <div className="fade-in">
+          <div className="panel" style={{ borderColor: "rgba(250,204,21,0.3)" }}>
+            <div className="panel-subtitle">STEP 1. 첫 번째 교배</div>
+            <div className="panel-title" style={{ color: "#facc15" }}>우열의 원리 (Law of Dominance)</div>
+
+            <p className="text-body" style={{ textAlign: "center", marginBottom: 30 }}>
+              확보된 순종 둥근 완두(RR)와 순종 주름진 완두(rr)를 교배해봅시다.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 40, marginBottom: 30, background: "rgba(0,0,0,0.2)", padding: "30px", borderRadius: "16px" }}>
+              <Pea round neutral size={80} label="RR" />
+              <div style={{ fontSize: 40, color: "#64748b", fontWeight: 300 }}>×</div>
+              <Pea round={false} neutral size={80} label="rr" />
+            </div>
+
+            <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 14, padding: "20px", marginBottom: 10 }}>
+              <div style={{ fontSize: 14, color: "#94a3b8", textAlign: "center", marginBottom: 16, fontWeight: 700 }}>
+                💡 핵심 전제: 생식세포는 부모의 대립유전자 중 <strong style={{color:"#e2e8f0"}}>딱 1개만</strong> 담아 만들어집니다
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 60, flexWrap: "wrap" }}>
+                <GameteSplitDiagram parentGenotype="RR" label="순종 둥근" />
+                <GameteSplitDiagram parentGenotype="rr" label="순종 주름" />
+              </div>
+              <div style={{ textAlign: "center", marginTop: 20, fontSize: 20, color: "#64748b" }}>↓ 생식세포끼리 결합</div>
+              <div style={{ textAlign: "center", marginTop: 8 }}>
+                <div style={{ display: "inline-block", padding: "10px 24px", borderRadius: 10, background: "rgba(167,139,250,0.15)", border: "2px solid rgba(167,139,250,0.4)", fontSize: 22, fontWeight: 900, color: "#e2e8f0", letterSpacing: 2 }}>Rr</div>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>유전자형만 결정됨 — 겉모습(표현형)은 아직 모름</div>
+              </div>
+              <p className="text-body" style={{ textAlign: "center", marginTop: 12, fontSize: 13 }}>
+                RR은 R만 담은 생식세포만, rr은 r만 담은 생식세포만 만들기 때문에 결합 결과는 항상 유전자형 Rr 하나뿐입니다.
+                (경우의 수가 1가지뿐이라 여기서는 퍼넷사각형을 그려도 4칸이 모두 같은 답이 나옵니다.) 그렇다면 Rr은 실제로 어떤 모습일까요?</p>
+            </div>
           </div>
-        ))}
-      </div>
 
-      {/* 대시보드 통계 — 전체 집단 비율(%) */}
-      <div style={{ fontSize: 11, textAlign: "center", color: "#64748b", marginBottom: 8 }}>
-        📊 전체 집단 비율 (해석적 계산값)
-      </div>
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10,
-        textAlign: "center", maxWidth: 400, margin: "0 auto 14px", fontSize: 11
-      }}>
-        <div style={{ background: "rgba(255,255,255,0.02)", padding: "6px", borderRadius: 6 }}>
-          <div style={{ color: "#fff", fontWeight: 800 }}>{homoPct.toFixed(1)}%</div>
-          <div style={{ color: "#64748b", fontSize: 9 }}>둥근 순종 (RR)</div>
-        </div>
-        <div style={{ background: "rgba(167,139,250,0.05)", padding: "6px", borderRadius: 6, border: "1px solid rgba(167,139,250,0.15)" }}>
-          <div style={{ color: "#a78bfa", fontWeight: 800 }}>{hybridPct.toFixed(1)}%</div>
-          <div style={{ color: "#7c6aa8", fontSize: 9 }}>둥근 잡종 (Rr)</div>
-        </div>
-        <div style={{ background: "rgba(255,255,255,0.02)", padding: "6px", borderRadius: 6 }}>
-          <div style={{ color: "#4ade80", fontWeight: 800 }}>{homoPct.toFixed(1)}%</div>
-          <div style={{ color: "#64748b", fontSize: 9 }}>주름진 순종 (rr)</div>
-        </div>
-      </div>
+          {stage === "hyp" && (
+            <HypothesisBox
+              counterFactual="교배 전에는 우성과 열성이 어떻게 합쳐질지 알 수 없습니다. 여러 가능성을 생각해봅시다."
+              question="RR과 rr을 교배하면 자손(F1)의 겉모습은 어떻게 될까요?"
+              options={options}
+              onCorrect={() => setStage("done")}
+            />
+          )}
 
-      <div style={{ textAlign: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 12, color: "#38bdf8", marginBottom: 6, fontWeight: 700 }}>
-          현재 진행 상황: <span style={{ fontFamily: "monospace" }}>{gen}</span>세대 자가수분 완료
+          {stage === "done" && (
+            <div className="panel fade-in" style={{ borderColor: "rgba(250,204,21,0.3)", textAlign: "center" }}>
+              <div style={{ marginBottom: 20 }}><Pea className="pop" round neutral size={90} label="Rr" /></div>
+              <div className="result-box">
+                💡 부모로부터 R과 r을 하나씩 물려받아 <span className="text-highlight">유전자형은 Rr</span>이 되었습니다.<br/>
+                하지만 겉모습(표현형)은 주름진 모양이 완전히 사라지고 <strong>우성 형질인 둥근 모양만 발현</strong>됩니다.<br/>
+                <span style={{ color: "#facc15" }}>주의:</span> r 유전자는 사라진 것이 아니라 Rr 안에 그대로 남아있습니다 — 다음 막에서 확인해봅시다.
+              </div>
+              <button className="btn btn-pink" style={{ marginTop: 24 }} onClick={onComplete}>2막: 숨겨진 유전자 추적하기 →</button>
+            </div>
+          )}
         </div>
-        {!pnAllDone && gen === 0 && (
-          <div style={{ fontSize: 10, color: "#7c6aa8", marginBottom: 8 }}>
-            👆 위 퍼넷 사각형을 먼저 채워보면 아래 결과가 왜 이렇게 나오는지 더 잘 이해될 거예요
+      );
+    }
+
+    /* ══════════════════════════════════════════════════
+       2막 — 분리의 법칙
+    ══════════════════════════════════════════════════ */
+    const act2Reducer = (state, action) => {
+      switch(action.type) {
+        case 'SET_STAGE': return { ...state, stage: action.payload };
+        case 'TOGGLE_CELL':
+          const exists = state.filled.includes(action.payload);
+          return { ...state, filled: exists ? state.filled.filter(i => i !== action.payload) : [...state.filled, action.payload] };
+        case 'FILL_ALL': return { ...state, filled: [0,1,2,3] };
+        case 'RESAMPLE': return { ...state, sampleRound: state.sampleRound + 1, sampleSize: action.payload };
+        default: return state;
+      }
+    };
+
+    function Act2Segregation({ onComplete }) {
+      const [state, dispatch] = useReducer(act2Reducer, { stage: 'hypothesis', filled: [], sampleRound: 0, sampleSize: 24 });
+      const ALLELES = ["R", "r"];
+
+      // 표본오차를 반영한 실제 수확 데이터 (매번 조금씩 다름)
+      const roundCount = useMemo(() => binomialSample(state.sampleSize, 0.75), [state.sampleRound, state.sampleSize]);
+      const wrinkledCount = state.sampleSize - roundCount;
+      const harvest = useMemo(() => shuffle([...Array(roundCount).fill({ round: true }), ...Array(wrinkledCount).fill({ round: false })]), [roundCount, wrinkledCount]);
+      const observedRatio = (roundCount / (wrinkledCount || 1));
+
+      const hypOptions = [
+        { text: "유전자가 소멸되었으므로 모두 둥근 완두만 나온다", correct: false, feedback: "우열의 원리에서 확인했듯 r 유전자는 소멸되지 않고 Rr 안에 남아있었습니다. 소멸된 것이 아니라면 다시 나타날 가능성을 생각해봐야 합니다." },
+        { text: "숨어있던 주름진 완두가 다시 나타난다", correct: true, feedback: "맞습니다. Rr끼리 자가수분하면 생식세포 형성 과정에서 R과 r이 분리되어 각각 다른 생식세포로 들어가고, 그 결합으로 rr(주름) 조합도 다시 만들어집니다." },
+        { text: "F1과 똑같이 전부 Rr 유전자형만 나온다", correct: false, feedback: "만약 그렇다면 표현형도 항상 둥근 모양만 나와야 합니다. 하지만 실제로는 RR, Rr, rr 세 가지 유전자형이 모두 나타납니다. 왜 그런지 아래에서 직접 확인해봅시다." },
+      ];
+
+      return (
+        <div className="fade-in">
+          <div className="panel" style={{ borderColor: "rgba(56,189,248,0.3)" }}>
+            <div className="panel-subtitle">STEP 2. 자가 수분</div>
+            <div className="panel-title" style={{ color: "#38bdf8" }}>분리의 법칙 (Law of Segregation)</div>
+
+            {state.stage === 'hypothesis' && (
+              <HypothesisBox
+                counterFactual="만약 1막에서 열성 유전자(r)가 둥근 유전자(R)에 의해 완전히 파괴되거나 소멸되었다면, 자손은 영원히 둥근 완두만 나와야 합니다."
+                question="실제 F1(Rr)을 다시 자가수분시켜 키우면 어떤 결과가 나타날까요?"
+                options={hypOptions}
+                onCorrect={() => dispatch({ type: 'SET_STAGE', payload: 'harvest' })}
+              />
+            )}
+
+            {state.stage === 'harvest' && (
+              <div className="fade-in" style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 18, color: "#e2e8f0", marginBottom: 20, fontWeight: 800 }}>
+                  🌱 실제 수확된 {state.sampleSize}개의 완두콩 데이터 (시도 {state.sampleRound + 1}회)
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(${state.sampleSize > 24 ? 15 : 8}, 1fr)`, gap: 10, maxWidth: 560, margin: "0 auto 24px", background: "rgba(0,0,0,0.3)", padding: "20px", borderRadius: "16px", maxHeight: 260, overflowY: "auto" }}>
+                  {harvest.map((it, i) => <Pea key={i} className="pop" round={it.round} neutral size={state.sampleSize > 24 ? 22 : 36} style={{ animationDelay: `${Math.min(i,20) * 0.02}s` }} />)}
+                </div>
+
+                <div className="result-box" style={{ background: "rgba(244,114,182,0.1)", borderColor: "rgba(244,114,182,0.3)", color: "#fbcfe8" }}>
+                  <span className="text-highlight" style={{ fontSize: 22, display: "block", marginBottom: 10 }}>
+                    둥근 모양 {roundCount}개 : 주름진 모양 {wrinkledCount}개 (실제 관찰비 {observedRatio.toFixed(2)} : 1)
+                  </span>
+                  이론적으로 기대되는 비율은 <strong>3 : 1 (2.00 : 1)</strong>입니다. 실제 표본에서는 우연(표본오차) 때문에 정확히 3:1이 아닐 수 있습니다.<br/>
+                  <span style={{ color: "#94a3b8", fontSize: 13 }}>👉 아래에서 표본 수를 늘려 이론값에 더 가까워지는지 확인해보세요.</span>
+                </div>
+
+                <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 16, flexWrap: "wrap" }}>
+                  <button className="btn btn-outline" onClick={() => dispatch({ type: 'RESAMPLE', payload: 24 })}>🔁 24개 다시 수확 (표본 오차 확인)</button>
+                  <button className="btn btn-outline" onClick={() => dispatch({ type: 'RESAMPLE', payload: 240 })}>📈 240개로 표본 늘리기</button>
+                </div>
+                <button className="btn btn-blue" style={{ marginTop: 20 }} onClick={() => dispatch({ type: 'SET_STAGE', payload: 'punnett' })}>🧮 퍼넷 사각형으로 이론적 확률 검증</button>
+              </div>
+            )}
+
+            {state.stage === 'punnett' && (
+              <div className="fade-in">
+                <div className="text-large" style={{ textAlign: "center", marginBottom: 12 }}>퍼넷 사각형의 빈칸을 직접 클릭하여 채워보세요</div>
+                <div style={{ fontSize: 14, color: "#94a3b8", textAlign: "center", marginBottom: 30 }}>각 생식세포가 만나 결합될 확률을 시각적으로 확인합니다.</div>
+
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: `80px repeat(2, 1fr)`, gap: 10 }}>
+                    <div></div>
+                    {ALLELES.map(g => <div key={'c'+g} style={{ background: "rgba(167,139,250,0.15)", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 12, fontSize: 22, fontWeight: 900, color: "#d8b4fe" }}>♂ {g}</div>)}
+
+                    {ALLELES.map((rowG, ri) => (
+                      <React.Fragment key={'r'+rowG}>
+                        <div style={{ background: "rgba(244,114,182,0.15)", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 12, fontSize: 22, fontWeight: 900, color: "#fbcfe8" }}>♀ {rowG}</div>
+                        {ALLELES.map((colG, ci) => {
+                          const idx = ri * 2 + ci;
+                          const genotype = [rowG, colG].sort().reverse().join(""); // R 먼저 오도록 표기
+                          const isRound = genotype.includes("R");
+                          return <PunnettCell key={idx} isFilled={state.filled.includes(idx)} rowG={rowG} colG={colG} resultLabel={genotype} isRound={isRound} onClick={() => dispatch({ type: 'TOGGLE_CELL', payload: idx })} />
+                        })}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: "center" }}>
+                  {state.filled.length < 4 ? (
+                    <button className="btn btn-outline" onClick={() => dispatch({ type: 'FILL_ALL' })}>⚡ 전체 자동 채우기</button>
+                  ) : (
+                    <div className="result-box fade-in">
+                      <div style={{ display: "flex", justifyContent: "center", gap: 30, flexWrap: "wrap", marginBottom: 16 }}>
+                        <div>
+                          <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 700 }}>유전자형 비율</div>
+                          <div style={{ fontSize: 22, fontWeight: 900, color: "#a78bfa" }}>RR : Rr : rr = 1 : 2 : 1</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 700 }}>표현형 비율</div>
+                          <div style={{ fontSize: 22, fontWeight: 900, color: "#facc15" }}>둥근 : 주름 = 3 : 1</div>
+                        </div>
+                      </div>
+                      🎯 대립유전자가 생식세포 형성 시 서로 분리되어 들어간다는 <strong>분리의 법칙</strong> 덕분에 RR, Rr(2가지 조합), rr이 1:2:1로 만들어지고,
+                      Rr이 우열의 원리에 의해 둥근 모양으로 보이므로 겉모습은 <span className="text-highlight">3:1</span>이 됩니다.<br/>
+                      <span style={{ fontSize: 13, color: "#94a3b8" }}>즉, 유전자형 비율(1:2:1)과 표현형 비율(3:1)은 같은 현상을 서로 다른 눈금으로 보는 것입니다.</span>
+                      <div style={{ marginTop: 24 }}><button className="btn btn-blue" onClick={onComplete}>3막: 두 가지 형질 동시 고려하기 →</button></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-        <Btn onClick={handleSelfPollination} disabled={stopped} style={{ background: "linear-gradient(135deg,#6366f1,#a78bfa)" }}>
-          🔄 현재 개체들끼리 자가수분 시키기 (다음 세대)
-        </Btn>
-      </div>
+        </div>
+      );
+    }
 
-      {stopped && (
-        <div style={{
-          background: "rgba(56,189,248,0.06)", border: "1px solid rgba(56,189,248,0.2)",
-          borderRadius: 10, padding: "12px", fontSize: 12, color: "#bae6fd", lineHeight: 1.7, marginTop: 12
-        }}>
-          🎯 <strong>원리 발견</strong>: 잡종(Rr)의 비율은 매 세대 정확히 <strong>절반씩</strong> 줄어듭니다
-          (100% → 50% → 25% → 12.5% → 6.25% → <strong>{hybridPct.toFixed(2)}%</strong>).
-          수학적으로는 절반씩 줄 뿐 정확히 0%가 되지는 않지만, {MAX_GEN}세대만 지나도 잡종은
-          전체의 {hybridPct.toFixed(1)}%까지 줄어들어 사실상 무시할 수 있는 수준이 됩니다.
-          반면 유전자가 고정된 순종(RR과 rr)은 자가수분해도 자기 자신만 낳으므로, 집단은 거의 다
-          순종으로 채워집니다.
-          <br />이제 충분히 순수한 <strong>순종 둥근 완두(RR)</strong>와 <strong>순종 주름진 완두(rr)</strong>를
-          골라 교배 실험을 시작해봅시다.
-          <div style={{ textAlign: "center", marginTop: 10 }}>
-            <Btn onClick={onComplete} style={{ background: "linear-gradient(135deg,#0ea5e9,#38bdf8)" }}>
-              검증 시작: 1막 우열의 원리로 이동 →
-            </Btn>
+    /* ══════════════════════════════════════════════════
+       3막 — 독립의 법칙 (직접 채우는 4x4 두 형질 퍼넷사각형)
+    ══════════════════════════════════════════════════ */
+    function Act3Independence({ onComplete }) {
+      const [stage, setStage] = useState("hypothesis");
+      const [filled, setFilled] = useState([]);
+      const gametes = ["RY", "Ry", "rY", "ry"];
+
+      const hypOptions = [
+        { text: "서로 묶여서 간섭하여 새로운 복잡한 비율이 나온다", correct: false, feedback: "모양 유전자와 색깔 유전자가 서로 다른 염색체에 있다면 감수분열 과정에서 독립적으로 배열됩니다. 함께 묶여 이동한다는 근거가 없다면 이 가설은 성립하기 어렵습니다." },
+        { text: "서로 간섭 없이 독립적으로 움직여 각각의 확률이 곱해진다", correct: true, feedback: "정확합니다. 서로 다른 형질을 결정하는 유전자가 다른 염색체에 있으면, 생식세포 형성 시 독립적으로 분리·조합됩니다. 그 결과 두 형질의 확률을 곱한 값이 실제 비율이 됩니다." },
+        { text: "두 형질 중 하나만 무작위로 사라진다", correct: false, feedback: "형질이 무작위로 사라지는 현상은 관찰되지 않습니다. 모양과 색깔 모두 각자의 3:1 비율을 유지한 채 함께 나타납니다." },
+      ];
+
+      const genotypeOf = (g1, g2) => {
+        const shape = [g1[0], g2[0]].sort().reverse().join("");
+        const color = [g1[1], g2[1]].sort().reverse().join("");
+        return { shape, color, round: shape.includes("R"), yellow: color.includes("Y") };
+      };
+
+      const allFilled = filled.length === 16;
+
+      // 4x4 결과 집계로 9:3:3:1 실제 계산해서 보여주기
+      const counts = useMemo(() => {
+        let c = { roundYellow: 0, roundGreen: 0, wrinkledYellow: 0, wrinkledGreen: 0 };
+        gametes.forEach(g1 => gametes.forEach(g2 => {
+          const { round, yellow } = genotypeOf(g1, g2);
+          if (round && yellow) c.roundYellow++;
+          else if (round && !yellow) c.roundGreen++;
+          else if (!round && yellow) c.wrinkledYellow++;
+          else c.wrinkledGreen++;
+        }));
+        return c;
+      }, []);
+
+      return (
+        <div className="fade-in">
+          <div className="panel" style={{ borderColor: "rgba(74,222,128,0.3)" }}>
+            <div className="panel-subtitle">STEP 3. 확장된 교배</div>
+            <div className="panel-title" style={{ color: "#4ade80" }}>독립의 법칙 (Law of Independent Assortment)</div>
+
+            {stage === "hypothesis" && (
+              <HypothesisBox
+                counterFactual="만약 완두의 '모양(둥글/주름)'과 '색깔(황/녹)' 유전자가 하나의 끈으로 강하게 묶여 함께 이동한다면, 3:1 비율의 구조가 깨질 것입니다."
+                question="두 형질을 동시에 교배할 때(RrYy × RrYy), 모양 유전자와 색깔 유전자는 서로 간섭할까요?"
+                options={hypOptions}
+                onCorrect={() => setStage("punnett")}
+              />
+            )}
+
+            {stage === "punnett" && (
+              <div className="fade-in">
+                <div className="text-large" style={{ textAlign: "center", marginBottom: 6 }}>RrYy × RrYy 의 4×4 퍼넷 사각형을 직접 채워보세요</div>
+                <div style={{ fontSize: 13, color: "#94a3b8", textAlign: "center", marginBottom: 20 }}>생식세포는 RY, Ry, rY, ry 네 종류가 같은 확률(각 1/4)로 만들어집니다.</div>
+
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 20, overflowX: "auto" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: `70px repeat(4, 74px)`, gap: 6 }}>
+                    <div></div>
+                    {gametes.map(g => <div key={'c'+g} style={{ background: "rgba(167,139,250,0.15)", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, fontSize: 14, fontWeight: 900, color: "#d8b4fe" }}>♂{g}</div>)}
+                    {gametes.map((rowG, ri) => (
+                      <React.Fragment key={'r'+rowG}>
+                        <div style={{ background: "rgba(244,114,182,0.15)", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, fontSize: 14, fontWeight: 900, color: "#fbcfe8" }}>♀{rowG}</div>
+                        {gametes.map((colG, ci) => {
+                          const idx = ri * 4 + ci;
+                          const { shape, color, round, yellow } = genotypeOf(rowG, colG);
+                          const isFilled = filled.includes(idx);
+                          return (
+                            <button key={idx} onClick={() => setFilled(f => f.includes(idx) ? f.filter(x=>x!==idx) : [...f, idx])}
+                              style={{ width: 74, height: 74, background: "rgba(255,255,255,0.03)", border: isFilled ? "2px solid #38bdf8" : "2px dashed rgba(148,163,184,0.3)", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                              {isFilled ? (
+                                <div className="pop" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                  <Pea round={round} yellow={yellow} size={30} />
+                                  <div style={{ fontSize: 10, fontWeight: 800, marginTop: 2 }}>{shape}{color}</div>
+                                </div>
+                              ) : <div style={{ fontSize: 20, color: "#475569", fontWeight: 900 }}>?</div>}
+                            </button>
+                          );
+                        })}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: "center" }}>
+                  {!allFilled ? (
+                    <button className="btn btn-outline" onClick={() => setFilled(Array.from({length:16}, (_,i)=>i))}>⚡ 전체 자동 채우기</button>
+                  ) : (
+                    <div className="fade-in">
+                      <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap", margin: "16px 0" }}>
+                        <div style={{ background: "rgba(0,0,0,0.3)", padding: "12px 16px", borderRadius: 10 }}><Pea round yellow size={28} /><div style={{ fontSize: 12, marginTop: 4 }}>둥근×황 {counts.roundYellow}</div></div>
+                        <div style={{ background: "rgba(0,0,0,0.3)", padding: "12px 16px", borderRadius: 10 }}><Pea round yellow={false} size={28} /><div style={{ fontSize: 12, marginTop: 4 }}>둥근×녹 {counts.roundGreen}</div></div>
+                        <div style={{ background: "rgba(0,0,0,0.3)", padding: "12px 16px", borderRadius: 10 }}><Pea round={false} yellow size={28} /><div style={{ fontSize: 12, marginTop: 4 }}>주름×황 {counts.wrinkledYellow}</div></div>
+                        <div style={{ background: "rgba(0,0,0,0.3)", padding: "12px 16px", borderRadius: 10 }}><Pea round={false} yellow={false} size={28} /><div style={{ fontSize: 12, marginTop: 4 }}>주름×녹 {counts.wrinkledGreen}</div></div>
+                      </div>
+                      <button className="btn btn-green" onClick={() => setStage("conclusion")}>결과 분석하기 →</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {stage === "conclusion" && (
+              <div className="fade-in" style={{ textAlign: "center" }}>
+                <div style={{ display: "flex", justifyContent: "center", gap: 30, marginBottom: 30, flexWrap: "wrap" }}>
+                  <div style={{ background: "rgba(0,0,0,0.3)", padding: "20px", borderRadius: "16px", flex: 1, minWidth: 140 }}>
+                    <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 10, fontWeight: 800 }}>모양의 확률</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>3 : 1</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", fontSize: 32, color: "#64748b" }}>×</div>
+                  <div style={{ background: "rgba(0,0,0,0.3)", padding: "20px", borderRadius: "16px", flex: 1, minWidth: 140 }}>
+                    <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 10, fontWeight: 800 }}>색깔의 확률</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>3 : 1</div>
+                  </div>
+                </div>
+
+                <div className="result-box" style={{ background: "rgba(74,222,128,0.1)", borderColor: "rgba(74,222,128,0.3)" }}>
+                  <div style={{ fontSize: 32, fontWeight: 900, color: "#4ade80", marginBottom: 16, letterSpacing: 2 }}>
+                    {counts.roundYellow} : {counts.roundGreen} : {counts.wrinkledYellow} : {counts.wrinkledGreen} <span style={{fontSize:18, color:"#94a3b8"}}>(= 9:3:3:1)</span>
+                  </div>
+                  방금 직접 채운 16칸을 세어보면 둥근·황 : 둥근·녹 : 주름·황 : 주름·녹 = 9:3:3:1이 나옵니다.<br/>
+                  각 형질의 3:1 비율이 서로 간섭하지 않고 독립적으로 작용하여 <strong>확률의 곱셈 규칙</strong>이 성립함을 직접 확인했습니다.<br/>
+                  이처럼 서로 다른 염색체에 위치한 대립유전자가 독립적으로 유전되는 현상을 <span className="text-highlight">독립의 법칙</span>이라고 합니다.
+                </div>
+
+                <button className="btn btn-pink" style={{ marginTop: 30, padding: "16px 32px" }} onClick={onComplete}>4막: 종합 이해도 점검 →</button>
+              </div>
+            )}
           </div>
         </div>
-      )}
-    </div>
-  );
-}
+      );
+    }
 
-/* ── 1막 교배 애니메이션 ────────────────────────── */
-function CrossAnimationMono({ playing, onDone, alleleA, alleleB, colorA, colorB, resultLabel, resultColor }) {
-  const [phase, setPhase] = useState(0);
-  useEffect(() => {
-    if (!playing) { setPhase(0); return; }
-    const timers = [
-      setTimeout(() => setPhase(1), 60),
-      setTimeout(() => setPhase(2), 1000),
-      setTimeout(() => { setPhase(3); onDone && onDone(); }, 1900),
+    /* ══════════════════════════════════════════════════
+       4막 — 종합 이해도 점검 (퀴즈 + 진행기록 저장)
+    ══════════════════════════════════════════════════ */
+    const QUIZ = [
+      {
+        q: "Rr × Rr 교배에서 자손의 유전자형 비율은?",
+        options: [
+          { text: "RR : Rr : rr = 1 : 2 : 1", correct: true, feedback: "맞습니다. 분리의 법칙에 따라 생식세포가 R, r로 나뉘어 결합하면 1:2:1 비율이 나옵니다." },
+          { text: "RR : Rr : rr = 1 : 1 : 1", correct: false, feedback: "Rr 조합은 (부 R, 모 r)과 (부 r, 모 R) 두 경우로 만들어져 다른 조합보다 2배 많습니다." },
+          { text: "표현형 비율과 똑같이 3 : 1이다", correct: false, feedback: "3:1은 '표현형' 비율입니다. '유전자형' 비율은 RR, Rr, rr을 구분해서 세므로 1:2:1이 됩니다." },
+        ],
+      },
+      {
+        q: "우열의 원리에서 Rr의 겉모습(표현형)은 어떻게 되나요?",
+        options: [
+          { text: "우성인 둥근 모양만 나타난다", correct: true, feedback: "맞습니다. 열성 유전자는 유전자형에는 남아있지만 표현형으로는 드러나지 않습니다." },
+          { text: "둥근 모양과 주름 모양이 무늬처럼 섞여 나타난다", correct: false, feedback: "멘델의 완두는 중간 유전이 아니라 완전 우성이므로 섞여서 보이지 않습니다." },
+        ],
+      },
+      {
+        q: "실제 실험에서 24개의 표본을 수확했더니 17:7이 나왔습니다. 이 결과가 뜻하는 것은?",
+        options: [
+          { text: "분리의 법칙이 틀렸으므로 폐기해야 한다", correct: false, feedback: "작은 표본에서는 우연(표본오차)에 의해 이론값(3:1=18:6)과 정확히 일치하지 않을 수 있습니다. 표본을 늘리면 이론값에 가까워집니다." },
+          { text: "표본 수가 적어 생긴 우연한 오차일 수 있으므로 표본을 늘려 재확인해야 한다", correct: true, feedback: "정확합니다. 과학적 법칙은 한 번의 표본으로 기각하지 않고, 표본 크기를 늘려 이론값과 비교하는 것이 올바른 검증 방법입니다." },
+        ],
+      },
+      {
+        q: "RrYy × RrYy를 교배했을 때 나오는 표현형 비율은?",
+        options: [
+          { text: "9 : 3 : 3 : 1", correct: true, feedback: "맞습니다. 모양(3:1)과 색깔(3:1)이 독립적으로 곱해져 9:3:3:1이 됩니다." },
+          { text: "3 : 3 : 1 : 1", correct: false, feedback: "두 형질이 독립적으로 곱해질 때는 3×3=9, 3×1=3, 1×3=3, 1×1=1의 곱셈 규칙이 적용됩니다." },
+        ],
+      },
     ];
-    return () => timers.forEach(clearTimeout);
-  }, [playing]);
 
-  const bubbleStyle = (left, opacity) => ({
-    position: "absolute", top: "50%", left,
-    transform: "translate(-50%,-50%)",
-    transition: "left 0.9s cubic-bezier(.4,1.4,.6,1), opacity 0.4s",
-    opacity,
-  });
+    function Act4Quiz({ onRestart, saveResult }) {
+      const [idx, setIdx] = useState(0);
+      const [picked, setPicked] = useState(null);
+      const [score, setScore] = useState(0);
+      const [done, setDone] = useState(false);
 
-  return (
-    <div style={{ position: "relative", height: 78, marginTop: 4 }}>
-      <div style={bubbleStyle(phase >= 1 ? "46%" : "8%", phase >= 2 ? 0 : 1)}>
-        <div style={{
-          width: 46, height: 46, borderRadius: "50%",
-          background: `linear-gradient(135deg, ${colorA}, ${colorA}cc)`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 13, fontWeight: 800, color: "#1a1a2e", boxShadow: `0 0 14px ${colorA}55`,
-        }}>{alleleA}</div>
-      </div>
-      <div style={bubbleStyle(phase >= 1 ? "54%" : "92%", phase >= 2 ? 0 : 1)}>
-        <div style={{
-          width: 46, height: 46, borderRadius: "50%",
-          background: `linear-gradient(135deg, ${colorB}, ${colorB}cc)`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 13, fontWeight: 800, color: "#1a1a2e", boxShadow: `0 0 14px ${colorB}55`,
-        }}>{alleleB}</div>
-      </div>
-      <div style={{
-        position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-        opacity: phase >= 2 ? 1 : 0, transition: "opacity 0.5s",
-      }}>
-        <div style={{
-          width: 58, height: 58, borderRadius: "50%",
-          background: `linear-gradient(135deg, ${colorA}, ${colorB})`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 13, fontWeight: 900, color: "#1a1a2e", boxShadow: `0 0 22px ${resultColor}66`,
-        }}>{resultLabel}</div>
-      </div>
-    </div>
-  );
-}
+      const current = QUIZ[idx];
+      const isCorrect = picked !== null && current.options[picked].correct;
 
-/* ── 2막 감수분열 애니메이션 ────────────────── */
-function MeiosisAnimationMono({ playing, onDone }) {
-  const [phase, setPhase] = useState(0);
-  useEffect(() => {
-    if (!playing) { setPhase(0); return; }
-    const timers = [
-      setTimeout(() => setPhase(1), 60),
-      setTimeout(() => setPhase(2), 1100),
-      setTimeout(() => setPhase(3), 2200),
-      setTimeout(() => { setPhase(4); onDone && onDone(); }, 3200),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, [playing]);
+      const handleNext = () => {
+        if (idx + 1 < QUIZ.length) { setIdx(idx + 1); setPicked(null); }
+        else { setDone(true); saveResult(score + (isCorrect ? 1 : 0)); }
+      };
 
-  const slots = ["28%", "72%"];
-  const colors = ["#e0b97d", "#d4a373"];
-  const labels = ["R", "r"];
+      const handlePick = (i) => {
+        if (picked !== null && isCorrect) return;
+        setPicked(i);
+        if (current.options[i].correct && picked === null) setScore(s => s + 1);
+      };
 
-  return (
-    <div style={{ position: "relative", height: 130, marginTop: 6 }}>
-      {phase >= 1 && phase < 3 && (
-        <div style={{
-          position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
-          opacity: 1, transition: "opacity 0.4s", textAlign: "center",
-        }}>
-          <div style={{
-            width: 76, height: 56, borderRadius: 16,
-            background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.35)",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-          }}>
-            <span style={{
-              fontSize: 14, fontWeight: 900, color: "#e0b97d",
-              transform: phase >= 2 ? "translateY(-14px)" : "translateY(0)",
-              transition: "transform 0.8s ease",
-            }}>{phase === 1 ? "RR" : "R"}</span>
-            <span style={{
-              fontSize: 14, fontWeight: 900, color: "#d4a373",
-              transform: phase >= 2 ? "translateY(14px)" : "translateY(0)",
-              transition: "transform 0.8s ease",
-            }}>{phase === 1 ? "rr" : "r"}</span>
-          </div>
-          <div style={{ fontSize: 9, color: "#a78bfa", marginTop: 4, height: 12 }}>
-            {phase === 1 ? "🧬 간기: DNA 복제" : "✂️ 감수 분열 (대립유전자 분리)"}
-          </div>
-        </div>
-      )}
-
-      {labels.map((g, i) => (
-        <div key={g} style={{
-          position: "absolute",
-          top: phase >= 3 ? 74 : 28,
-          left: phase >= 3 ? slots[i] : "50%",
-          transform: "translate(-50%,0)",
-          opacity: phase >= 3 ? 1 : 0,
-          transition: "all 0.9s cubic-bezier(.4,1.3,.6,1)",
-        }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: "50%",
-            background: `linear-gradient(135deg, ${colors[i]}, ${colors[i]}cc)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 14, fontWeight: 800, color: "#1a1a2e", boxShadow: `0 0 14px ${colors[i]}66`,
-          }}>{g}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ── 3막 애니메이션 모듈 ────────────────── */
-function CrossAnimationDi({ playing, onDone }) {
-  const [phase, setPhase] = useState(0);
-  useEffect(() => {
-    if (!playing) { setPhase(0); return; }
-    const timers = [
-      setTimeout(() => setPhase(1), 60),
-      setTimeout(() => setPhase(2), 1000),
-      setTimeout(() => { setPhase(3); onDone && onDone(); }, 1900),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, [playing]);
-
-  const bubbleStyle = (left, opacity) => ({
-    position: "absolute", top: "50%", left,
-    transform: "translate(-50%,-50%)",
-    transition: "left 0.9s cubic-bezier(.4,1.4,.6,1), opacity 0.4s",
-    opacity,
-  });
-
-  return (
-    <div style={{ position: "relative", height: 78, marginTop: 4 }}>
-      <div style={bubbleStyle(phase >= 1 ? "46%" : "8%", phase >= 2 ? 0 : 1)}>
-        <div style={{
-          width: 46, height: 46, borderRadius: "50%",
-          background: "linear-gradient(135deg,#fde047,#facc15)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 11, fontWeight: 800, color: "#713f12", boxShadow: "0 0 14px rgba(250,204,21,0.4)",
-        }}>RY</div>
-      </div>
-      <div style={bubbleStyle(phase >= 1 ? "54%" : "92%", phase >= 2 ? 0 : 1)}>
-        <div style={{
-          width: 46, height: 46, borderRadius: "50%",
-          background: "linear-gradient(135deg,#86efac,#4ade80)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 11, fontWeight: 800, color: "#14532d", boxShadow: "0 0 14px rgba(74,222,128,0.4)",
-        }}>ry</div>
-      </div>
-      <div style={{
-        position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-        opacity: phase >= 2 ? 1 : 0, transition: "opacity 0.5s",
-      }}>
-        <div style={{
-          width: 58, height: 58, borderRadius: "50%",
-          background: "linear-gradient(135deg,#facc15,#a78bfa)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 12, fontWeight: 900, color: "#1e1033", boxShadow: "0 0 22px rgba(167,139,250,0.5)",
-        }}>RrYy</div>
-      </div>
-    </div>
-  );
-}
-
-function MeiosisAnimationDi({ playing, onDone }) {
-  const [phase, setPhase] = useState(0);
-  useEffect(() => {
-    if (!playing) { setPhase(0); return; }
-    const timers = [
-      setTimeout(() => setPhase(1), 60),
-      setTimeout(() => setPhase(2), 900),
-      setTimeout(() => setPhase(3), 2000),
-      setTimeout(() => { setPhase(4); onDone && onDone(); }, 3200),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, [playing]);
-
-  const slots = ["12.5%", "37.5%", "62.5%", "87.5%"];
-  const colors = ["#facc15", "#fb923c", "#38bdf8", "#4ade80"];
-  const labels = ["RY", "Ry", "rY", "ry"];
-
-  return (
-    <div style={{ position: "relative", height: 130, marginTop: 6 }}>
-      <div style={{
-        position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
-        opacity: phase >= 1 && phase < 4 ? 1 : 0, transition: "opacity 0.4s", textAlign: "center",
-      }}>
-        <div style={{
-          width: 104, height: 56, borderRadius: 16,
-          background: "rgba(56,189,248,0.08)", border: "1px solid rgba(56,189,248,0.35)",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 16,
-        }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ fontSize: 13, fontWeight: 900, color: "#facc15", transform: phase >= 2 ? "translateY(-13px)" : "translateY(0)", transition: "transform 0.8s ease" }}>R</span>
-            <span style={{ fontSize: 13, fontWeight: 900, color: "#fb923c", transform: phase >= 2 ? "translateY(13px)" : "translateY(0)", transition: "transform 0.8s ease" }}>r</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ fontSize: 13, fontWeight: 900, color: "#38bdf8", transform: phase >= 2 ? "translateY(-13px)" : "translateY(0)", transition: "transform 0.8s ease" }}>Y</span>
-            <span style={{ fontSize: 13, fontWeight: 900, color: "#4ade80", transform: phase >= 2 ? "translateY(13px)" : "translateY(0)", transition: "transform 0.8s ease" }}>y</span>
-          </div>
-        </div>
-        <div style={{ fontSize: 9, color: "#7dd3fc", marginTop: 4 }}>
-          {phase < 2 ? "서로 다른 두 염색체 쌍 (RrYy)" : "서로 영향 없이 독립적으로 분리"}
-        </div>
-      </div>
-
-      {labels.map((g, i) => (
-        <div key={g} style={{
-          position: "absolute",
-          top: phase >= 3 ? 78 : 28,
-          left: phase >= 3 ? slots[i] : "50%",
-          transform: "translate(-50%,0)",
-          opacity: phase >= 3 ? 1 : 0,
-          transition: "all 0.9s cubic-bezier(.4,1.3,.6,1)",
-        }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: "50%",
-            background: `linear-gradient(135deg, ${colors[i]}, ${colors[i]}cc)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 11, fontWeight: 800, color: "#1a1a2e",
-            boxShadow: phase >= 3 ? `0 0 14px ${colors[i]}66` : "none",
-          }}>{g}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ── 진행 브레드크럼 ────────────────────────────── */
-function ActBreadcrumb({ act, maxUnlocked, onJump }) {
-  const acts = [
-    { n: 0, label: "순종 분리" },
-    { n: 1, label: "우열의 원리" },
-    { n: 2, label: "분리의 법칙" },
-    { n: 3, label: "독립의 법칙" },
-  ];
-  return (
-    <div style={{ display: "flex", justifyContent: "center", gap: 5, marginBottom: 18, flexWrap: "wrap" }}>
-      {acts.map((a, i) => {
-        const unlocked = a.n <= maxUnlocked;
-        const active = a.n === act;
+      if (done) {
         return (
-          <div key={a.n} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <button
-              onClick={() => unlocked && onJump(a.n)}
-              disabled={!unlocked}
-              style={{
-                padding: "6px 12px", borderRadius: 20, border: "none",
-                background: active ? "linear-gradient(135deg,#0ea5e9,#6366f1)" : unlocked ? "rgba(56,189,248,0.1)" : "rgba(255,255,255,0.03)",
-                color: active ? "#fff" : unlocked ? "#7dd3fc" : "#2a4560",
-                fontSize: 11, fontWeight: 700, cursor: unlocked ? "pointer" : "default",
-              }}
-            >
-              {a.n}막 · {a.label}
-            </button>
-            {i < acts.length - 1 && <span style={{ color: "#1e3650", fontSize: 11 }}>→</span>}
+          <div className="panel fade-in" style={{ borderColor: "rgba(250,204,21,0.4)", textAlign: "center" }}>
+            <div className="panel-subtitle">STEP 4. 종합 점검 결과</div>
+            <div className="panel-title" style={{ color: "#facc15" }}>학습 완료!</div>
+            <div style={{ fontSize: 40, fontWeight: 900, color: "#4ade80", marginBottom: 12 }}>{score} / {QUIZ.length}</div>
+            <p className="text-body" style={{ marginBottom: 24 }}>
+              우열의 원리, 분리의 법칙, 독립의 법칙을 모두 직접 실험하고 검증했습니다.<br/>
+              결과는 이 브라우저에 저장되어 다음에 이어서 확인할 수 있습니다.
+            </p>
+            <button className="btn btn-outline" onClick={onRestart}>처음부터 다시 실험하기 ↺</button>
           </div>
         );
-      })}
-    </div>
-  );
-}
+      }
 
-/* ══════════════════════════════════════════════════
-   1막 — 우열의 원리
-══════════════════════════════════════════════════ */
-function Act1Dominance({ onComplete }) {
-  const [stage, setStage] = useState("start");
-
-  return (
-    <div>
-      <div style={{
-        background: "rgba(255,255,255,0.018)", border: "1px solid rgba(250,204,21,0.18)",
-        borderRadius: 14, padding: "16px", marginBottom: 14,
-      }}>
-        <div style={{ fontSize: 10, color: "#fde68a", marginBottom: 4, textAlign: "center", fontWeight: 700, letterSpacing: 2 }}>
-          가설 ① — 0막에서 분리한 순종 대립 형질을 교배하면 자손에선 무엇이 나타날까?
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "#facc15", textAlign: "center", marginBottom: 12 }}>
-          우열의 원리 (Law of Dominance)
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 18, marginBottom: 4 }}>
-          <div style={{ textAlign: "center" }}>
-            <Pea round neutral size={46} />
-            <div style={{ fontSize: 11, marginTop: 6, color: "#e0b97d", fontWeight: 700 }}>RR (순종 둥근완두)</div>
-          </div>
-          <div style={{ fontSize: 18, color: "#3a5878" }}>×</div>
-          <div style={{ textAlign: "center" }}>
-            <Pea round={false} neutral size={46} />
-            <div style={{ fontSize: 11, marginTop: 6, color: "#d4a373", fontWeight: 700 }}>rr (순종 주름진완두)</div>
-          </div>
-        </div>
-
-        <CrossAnimationMono
-          playing={stage === "crossing"}
-          onDone={() => setStage("done")}
-          alleleA="R" alleleB="r" colorA="#e0b97d" colorB="#d4a373"
-          resultLabel="Rr" resultColor="#facc15"
-        />
-
-        {stage === "start" && (
-          <div style={{ textAlign: "center" }}>
-            <Btn onClick={() => setStage("crossing")} style={{ background: "linear-gradient(135deg,#0ea5e9,#6366f1)" }}>
-              🌱 잡종 1대(F1) 생성하기
-            </Btn>
-          </div>
-        )}
-
-        {stage === "done" && (
-          <>
-            <div style={{ textAlign: "center", marginBottom: 10 }}>
-              <Pea round neutral size={42} />
-              <div style={{ fontSize: 11, marginTop: 4, color: "#facc15", fontWeight: 700 }}>유전자형 Rr → 표현형: 모두 둥근 모양</div>
-            </div>
-            <div style={{
-              background: "rgba(250,204,21,0.06)", border: "1px solid rgba(250,204,21,0.2)",
-              borderRadius: 10, padding: "13px", fontSize: 12, color: "#fde68a", lineHeight: 1.75,
-            }}>
-              💡 <strong>관찰 결과</strong>: 순종 둥근 완두(RR)와 순종 주름진 완두(rr)를 교배하여 얻은 잡종 1대(F1)는
-              두 대립유전자(R, r)를 모두 가지고 있지만, 겉으로는 <strong>우성 형질(둥근 모양)</strong>만 표현되고
-              <strong> 열성 형질(주름진 모양)</strong>은 가려집니다. 이를 <strong>우열의 원리</strong>라고 합니다.
-              <br /><span style={{ color: "#a78bfa" }}>❓ 그렇다면 가려진 주름진 유전자(r)는 아예 사라져 버린 것일까요? 다음 실험에서 추적해 봅시다.</span>
-            </div>
-            <div style={{ textAlign: "center", marginTop: 12 }}>
-              <Btn onClick={onComplete} style={{ background: "linear-gradient(135deg,#a78bfa,#f472b6)" }}>
-                2막 진입: 분리의 법칙 검증하기 →
-              </Btn>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════
-   2막 — 분리의 법칙
-══════════════════════════════════════════════════ */
-function Act2Segregation({ onComplete }) {
-  const [stage, setStage] = useState("intro"); // intro → harvest → pattern → meiosisPlaying → punnett
-  const [filled, setFilled] = useState([]);
-  const [highlightIdx, setHighlightIdx] = useState(null);
-  const total = 4;
-  const allDone = filled.length === total;
-  const ALLELES = ["R", "r"];
-
-  // 라벨 없는 원시 수확물 — 정확히 3:1 (18:6, 총 24개)이지만 학생은 세어봐야 알 수 있음
-  const harvest = useMemo(() => shuffle([
-    ...Array(18).fill({ round: true }),
-    ...Array(6).fill({ round: false }),
-  ]), []);
-  const roundCount = harvest.filter(h => h.round).length;
-  const wrinkledCount = harvest.length - roundCount;
-
-  const counts = useMemo(() => {
-    const c = { round: 0, wrinkled: 0 };
-    filled.forEach(idx => {
-      const r = Math.floor(idx / 2), col = idx % 2;
-      if (ALLELES[r] === "R" || ALLELES[col] === "R") c.round++; else c.wrinkled++;
-    });
-    return c;
-  }, [filled]);
-
-  const toggleCell = (idx) => {
-    if (filled.includes(idx)) setFilled(f => f.filter(i => i !== idx));
-    else setFilled(f => [...f, idx]);
-  };
-
-  return (
-    <div>
-      {/* intro — 예측 유도 (기전은 아직 알려주지 않음) */}
-      <div style={{
-        background: "rgba(255,255,255,0.018)", border: "1px solid rgba(167,139,250,0.18)",
-        borderRadius: 14, padding: "16px", marginBottom: 14, textAlign: "center",
-      }}>
-        <div style={{ fontSize: 10, color: "#ddd6fe", marginBottom: 4, fontWeight: 700, letterSpacing: 2 }}>
-          가설 ② — F1(모두 둥근 모양)을 자가 수분해서 키우면, 자손은 어떤 모습일까?
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "#a78bfa", marginBottom: 12 }}>
-          분리의 법칙 (Law of Segregation)
-        </div>
-
-        {stage === "intro" && (
-          <>
-            <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 12, lineHeight: 1.6 }}>
-              1막에서 Rr는 겉으로 둥근 모양만 보였습니다. 자가수분한 자손도 전부 둥글기만 할까요,
-              아니면 주름진 모양이 다시 나타날까요? 예측하지 말고, 일단 직접 키워서 확인해봅시다.
-            </div>
-            <Btn onClick={() => setStage("harvest")} style={{ background: "linear-gradient(135deg,#a78bfa,#f472b6)" }}>
-              🌾 자가수분해서 수확해보기
-            </Btn>
-          </>
-        )}
-      </div>
-
-      {/* harvest — 라벨 없는 원시 데이터 관찰 */}
-      {(stage === "harvest" || stage === "pattern") && (
-        <div style={{
-          background: "rgba(255,255,255,0.018)", border: "1px solid rgba(167,139,250,0.18)",
-          borderRadius: 14, padding: "16px", marginBottom: 14, textAlign: "center",
-        }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: "#a78bfa", marginBottom: 10 }}>
-            🔍 실제 수확물 (24개) — 유전자형은 안 보이고 모양만 보입니다
-          </div>
-          <HarvestGrid items={harvest} />
-          <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 12, fontSize: 12.5 }}>
-            <span style={{ color: "#e0b97d", fontWeight: 700 }}>둥근 것: {roundCount}개</span>
-            <span style={{ color: "#d4a373", fontWeight: 700 }}>주름진 것: {wrinkledCount}개</span>
-          </div>
-
-          {stage === "harvest" && (
-            <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 8 }}>
-                💭 주름진 모양이 다시 나타났습니다! 그런데 18개 : 6개... 이 숫자에 어떤 규칙이 있을까요?
-              </div>
-              <Btn onClick={() => setStage("pattern")} style={{ background: "linear-gradient(135deg,#0ea5e9,#6366f1)" }}>
-                🧮 비율 계산해보기
-              </Btn>
-            </div>
-          )}
-
-          {stage === "pattern" && (
-            <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 10 }}>
-                18 : 6을 가장 간단한 정수비로 나타내면?
-              </div>
-              <ChoiceButtons
-                options={["4 : 1", "3 : 1", "2 : 1", "1 : 1"]}
-                correctIndex={1}
-                correctFeedback={
-                  <>
-                    정확해요! <strong>18÷6 : 6÷6 = 3 : 1</strong>. 이렇게 딱 떨어지는 정수비가 우연히 나왔을까요?
-                    멘델은 이 실험을 수천 번 반복해도 항상 이 비율에 가까운 결과를 얻었고, 이것이 <strong>무언가 숨겨진
-                    유전 인자가 일정한 규칙으로 자손에게 전달된다</strong>는 결정적 단서였습니다.
-                  </>
-                }
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* mechanism — 왜 3:1이 나오는지 감수분열로 설명 */}
-      {(stage === "pattern" || stage === "meiosisPlaying" || stage === "punnett") && (
-        <div style={{
-          background: "rgba(255,255,255,0.018)", border: "1px solid rgba(167,139,250,0.18)",
-          borderRadius: 14, padding: "16px", marginBottom: 14, textAlign: "center",
-        }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: "#7dd3fc", marginBottom: 4 }}>
-            🧬 그렇다면 3:1은 왜 나올까? — 감수분열 과정 들여다보기
-          </div>
-          <div style={{ fontSize: 10.5, color: "#64748b", marginBottom: 4 }}>
-            F1(Rr)이 생식세포를 만드는 순간을 확대해서 관찰해봅시다
-          </div>
-
-          <MeiosisAnimationMono playing={stage === "meiosisPlaying"} onDone={() => setStage("punnett")} />
-
-          {stage === "pattern" && (
-            <Btn onClick={() => setStage("meiosisPlaying")} style={{ background: "linear-gradient(135deg,#a78bfa,#f472b6)" }}>
-              🧬 감수분열 애니메이션 재생
-            </Btn>
-          )}
-        </div>
-      )}
-
-      {stage === "punnett" && (
-        <>
-          <div style={{
-            background: "rgba(255,255,255,0.022)", border: "1px solid rgba(80,135,200,0.12)",
-            borderRadius: 14, padding: "16px", marginBottom: 14, overflowX: "auto"
-          }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#7dd3fc", marginBottom: 6, textAlign: "center" }}>
-              퍼넷 사각형으로 예측 검증 ({filled.length} / 4 채움)
-            </div>
-            <div style={{ fontSize: 10, color: "#4b6a90", textAlign: "center", marginBottom: 14 }}>
-              💡 칸을 직접 클릭해서, 앞서 관찰한 3:1이 이론적으로도 나오는지 확인해보세요.
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 14, minWidth: "250px" }}>
-              <div>
-                <div style={{ display: "grid", gridTemplateColumns: `54px repeat(2, 1fr)`, gap: 6 }}>
-                  <div></div>
-                  {ALLELES.map((g, ci) => (
-                    <div key={g} style={{
-                      width: 64, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
-                      background: highlightIdx !== null && highlightIdx % 2 === ci ? "rgba(14,165,233,0.25)" : "rgba(167,139,250,0.12)",
-                      border: "1px solid rgba(167,139,250,0.3)", borderRadius: 6, fontSize: 13, fontWeight: 700, color: "#c4b5fd",
-                      transition: "background 0.2s"
-                    }}>♂ {g}</div>
-                  ))}
-                </div>
-                {ALLELES.map((rowG, ri) => (
-                  <div key={rowG} style={{ display: "grid", gridTemplateColumns: `54px repeat(2, 1fr)`, gap: 6, marginTop: 6 }}>
-                    <div style={{
-                      width: 54, height: 64, display: "flex", alignItems: "center", justifyContent: "center",
-                      background: highlightIdx !== null && Math.floor(highlightIdx / 2) === ri ? "rgba(244,114,182,0.25)" : "rgba(244,114,182,0.12)",
-                      border: "1px solid rgba(244,114,182,0.3)", borderRadius: 6, fontSize: 13, fontWeight: 700, color: "#f9a8d4",
-                      transition: "background 0.2s"
-                    }}>♀ {rowG}</div>
-                    {ALLELES.map((colG, ci) => {
-                      const idx = ri * 2 + ci;
-                      const isFilled = filled.includes(idx);
-                      const combo = rowG + colG;
-                      const round = combo.includes("R");
-                      const genotype = combo.split("").sort((a,b)=>a==="R"?-1:1).join("");
-
-                      return (
-                        <button
-                          key={idx}
-                          onMouseEnter={() => setHighlightIdx(idx)}
-                          onMouseLeave={() => setHighlightIdx(null)}
-                          onClick={() => toggleCell(idx)}
-                          style={{
-                            width: 64, height: 64, background: isFilled ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.01)",
-                            border: isFilled ? "1.5px solid #38bdf8" : "1px solid rgba(80,135,200,0.15)",
-                            borderRadius: 6, display: "flex", flexDirection: "column", cursor: "pointer",
-                            alignItems: "center", justifyContent: "center", transition: "all 0.2s",
-                          }}
-                        >
-                          {isFilled ? (
-                            <>
-                              <Pea round={round} neutral size={28} />
-                              <GenotypeLabel text={genotype} fontSize={10} />
-                            </>
-                          ) : (
-                            <div style={{ fontSize: 15, color: "#223b59" }}>?</div>
-                          )}
-                        </button>
-                      );
-                    })}
+      return (
+        <div className="panel fade-in" style={{ borderColor: "rgba(250,204,21,0.4)" }}>
+          <div className="panel-subtitle">STEP 4. 종합 이해도 점검 ({idx + 1} / {QUIZ.length})</div>
+          <div className="panel-title" style={{ color: "#facc15" }}>세 가지 법칙 총정리 퀴즈</div>
+          <div className="text-large" style={{ marginBottom: 20 }}>{current.q}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {current.options.map((opt, i) => (
+              <div key={i}>
+                <button className={`btn btn-outline ${picked === i ? (opt.correct ? 'selected' : 'wrong') : ''}`} style={{ width: "100%", padding: 14 }} onClick={() => handlePick(i)}>
+                  {opt.text}
+                </button>
+                {picked === i && (
+                  <div className={`feedback-box pop ${opt.correct ? 'feedback-correct' : 'feedback-wrong'}`}>
+                    {opt.correct ? '✅ ' : '❌ '}{opt.feedback}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-              <Btn onClick={() => setFilled([0,1,2,3])} disabled={allDone} style={{ background: "linear-gradient(135deg,#0ea5e9,#6366f1)" }}>
-                ⚡ 전체 채우기
-              </Btn>
-            </div>
+            ))}
           </div>
-
-          {filled.length > 0 && (
-            <div style={{
-              background: "rgba(255,255,255,0.018)", border: "1px solid rgba(80,130,200,0.1)",
-              borderRadius: 14, padding: "16px", marginBottom: 14,
-            }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#7dd3fc", marginBottom: 12, textAlign: "center" }}>
-                📊 퍼넷 사각형 이론값 vs 실제 수확물 (18:6 = 3:1)
-              </div>
-              {[
-                { key: "round", label: "둥근 완두 (우성)", expect: 3, color: "#e0b97d" },
-                { key: "wrinkled", label: "주름진 완두 (열성)", expect: 1, color: "#d4a373" }
-              ].map((item) => {
-                const cnt = counts[item.key];
-                const pct = (cnt / 4) * 100;
-                const expectPct = (item.expect / 4) * 100;
-                return (
-                  <div key={item.key} style={{ marginBottom: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
-                      <span style={{ color: "#7dd3fc" }}>{item.label}</span>
-                      <span style={{ fontFamily: "monospace", fontWeight: 800, color: item.color }}>{cnt} 개</span>
-                    </div>
-                    <div style={{ height: 10, background: "rgba(255,255,255,0.05)", borderRadius: 5, overflow: "hidden", position: "relative" }}>
-                      <div style={{ position: "absolute", left: `${expectPct}%`, top: 0, bottom: 0, width: 2, background: "rgba(255,255,255,0.4)", zIndex: 2 }} />
-                      <div style={{ height: "100%", width: `${pct}%`, background: item.color, borderRadius: 5, transition: "width 0.3s" }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {allDone && (
-            <div style={{
-              background: "rgba(167,139,250,0.07)", border: "1px solid rgba(167,139,250,0.25)",
-              borderRadius: 12, padding: "14px 16px", marginBottom: 14,
-            }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "#c4b5fd", marginBottom: 8, textAlign: "center" }}>
-                🎉 유전자형비 1:2:1 | 표현형비 둥근것 : 주름진것 = 3 : 1 확인
-              </div>
-              <div style={{ fontSize: 12, color: "#ddd6fe", lineHeight: 1.75 }}>
-                💡 <strong>분리의 법칙 검증 완료</strong>: 앞서 눈으로 세어 발견한 3:1 비율이, 퍼넷 사각형의
-                이론적 계산과도 정확히 일치했습니다. 쌍으로 존재하던 대립유전자가 감수분열을 거쳐
-                <strong> 서로 다른 생식세포로 깨끗이 분리되어</strong> 들어갔기 때문입니다.
-                이것이 바로 <strong>분리의 법칙</strong>입니다.
-              </div>
-
-              <div style={{
-                marginTop: 12, padding: "12px 13px",
-                background: "rgba(0,0,0,0.18)", border: "1px solid rgba(167,139,250,0.18)",
-                borderRadius: 10, fontSize: 11.5, color: "#cbd5e1", lineHeight: 1.8,
-              }}>
-                📜 <strong style={{ color: "#facc15" }}>멘델의 실제 실험 데이터 (1865년 논문)</strong><br />
-                우리는 24개로 단순화했지만, 멘델은 실제로 완두 <strong>7,324개</strong>를 직접 세었습니다.
-                <div style={{ display: "flex", gap: 14, marginTop: 6, flexWrap: "wrap" }}>
-                  <span>🟡 둥근 완두 <strong style={{ color: "#facc15" }}>5,474개</strong></span>
-                  <span>⬛ 주름진 완두 <strong style={{ color: "#fb923c" }}>1,850개</strong></span>
-                </div>
-                <div style={{ marginTop: 4, fontFamily: "monospace", color: "#86efac" }}>
-                  5474 ÷ 1850 ≈ 2.96 : 1 — 이론값 3:1과 거의 정확히 일치!
-                </div>
-              </div>
-
-              <div style={{ textAlign: "center", marginTop: 12 }}>
-                <Btn onClick={onComplete} style={{ background: "linear-gradient(135deg,#38bdf8,#0ea5e9)" }}>
-                  3막 진입: 독립의 법칙 검증하기 →
-                </Btn>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════
-   3막 — 독립의 법칙
-══════════════════════════════════════════════════ */
-const GAMETES_DI = ["RY", "Ry", "rY", "ry"];
-function phenotypeDi(rowG, colG) {
-  const alleles = (rowG + colG).split("");
-  const R = alleles.filter(a => a === "R" || a === "r");
-  const Y = alleles.filter(a => a === "Y" || a === "y");
-  const round = R.includes("R");
-  const yellow = Y.includes("Y");
-  const genotype = R.sort((a,b)=>a==="R"?-1:1).join("") + Y.sort((a,b)=>a==="Y"?-1:1).join("");
-  return { round, yellow, genotype };
-}
-
-function Act3Independence({ onRestart }) {
-  const [stage, setStage] = useState("intro"); // intro → crossing → f1 → harvest → reasoning → meiosisPlaying → punnett
-  const [filled, setFilled] = useState([]);
-  const [highlightIdx, setHighlightIdx] = useState(null);
-  const total = 16;
-  const allDone = filled.length === total;
-
-  // 라벨 없는 원시 수확물 — 정확히 9:3:3:1 (36:12:12:4, 총 64개)이지만 학생은 세어봐야 알 수 있음
-  const harvest = useMemo(() => shuffle([
-    ...Array(36).fill({ round: true, yellow: true }),
-    ...Array(12).fill({ round: true, yellow: false }),
-    ...Array(12).fill({ round: false, yellow: true }),
-    ...Array(4).fill({ round: false, yellow: false }),
-  ]), []);
-  const hRoundYellow = harvest.filter(h => h.round && h.yellow).length;
-  const hRoundGreen = harvest.filter(h => h.round && !h.yellow).length;
-  const hWrinkledYellow = harvest.filter(h => !h.round && h.yellow).length;
-  const hWrinkledGreen = harvest.filter(h => !h.round && !h.yellow).length;
-  const hRoundTotal = hRoundYellow + hRoundGreen;
-  const hWrinkledTotal = hWrinkledYellow + hWrinkledGreen;
-  const hYellowTotal = hRoundYellow + hWrinkledYellow;
-  const hGreenTotal = hRoundGreen + hWrinkledGreen;
-
-  const counts = useMemo(() => {
-    const c = { roundYellow: 0, roundGreen: 0, wrinkledYellow: 0, wrinkledGreen: 0 };
-    filled.forEach(idx => {
-      const r = Math.floor(idx / 4), col = idx % 4;
-      const { round, yellow } = phenotypeDi(GAMETES_DI[r], GAMETES_DI[col]);
-      if (round && yellow) c.roundYellow++;
-      else if (round && !yellow) c.roundGreen++;
-      else if (!round && yellow) c.wrinkledYellow++;
-      else c.wrinkledGreen++;
-    });
-    return c;
-  }, [filled]);
-
-  const toggleCell = (idx) => {
-    if (filled.includes(idx)) setFilled(f => f.filter(i => i !== idx));
-    else setFilled(f => [...f, idx]);
-  };
-
-  const PHENO_CONFIG = [
-    { key: "roundYellow", label: "둥글고 황색 (우/우)", round: true, yellow: true, expect: 9, color: "#facc15" },
-    { key: "roundGreen", label: "둥글고 녹색 (우/열)", round: true, yellow: false, expect: 3, color: "#4ade80" },
-    { key: "wrinkledYellow", label: "주름지고 황색 (열/우)", round: false, yellow: true, expect: 3, color: "#fbbf24" },
-    { key: "wrinkledGreen", label: "주름지고 녹색 (열/열)", round: false, yellow: false, expect: 1, color: "#16a34a" },
-  ];
-
-  const roundTotal = counts.roundYellow + counts.roundGreen;
-  const wrinkledTotal = counts.wrinkledYellow + counts.wrinkledGreen;
-  const yellowTotal = counts.roundYellow + counts.wrinkledYellow;
-  const greenTotal = counts.roundGreen + counts.wrinkledGreen;
-
-  return (
-    <div>
-      <div style={{
-        background: "rgba(255,255,255,0.018)", border: "1px solid rgba(56,189,248,0.18)",
-        borderRadius: 14, padding: "16px", marginBottom: 14, textAlign: "center",
-      }}>
-        <div style={{ fontSize: 10, color: "#bae6fd", marginBottom: 4, fontWeight: 700, letterSpacing: 2 }}>
-          가설 ③ — 완두의 모양 유전자와 색깔 유전자는 서로의 분리에 간섭을 줄까?
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "#38bdf8", marginBottom: 12 }}>
-          독립의 법칙 (Law of Independent Assortment)
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 18, marginBottom: 4 }}>
-          <div style={{ textAlign: "center" }}>
-            <Pea round yellow size={44} />
-            <div style={{ fontSize: 10, marginTop: 4, color: "#facc15", fontWeight: 700 }}>RRYY (둥글고 황색)</div>
-          </div>
-          <div style={{ fontSize: 18, color: "#3a5878" }}>×</div>
-          <div style={{ textAlign: "center" }}>
-            <Pea round={false} yellow={false} size={44} />
-            <div style={{ fontSize: 10, marginTop: 4, color: "#4ade80", fontWeight: 700 }}>rryy (주름지고 녹색)</div>
-          </div>
-        </div>
-
-        <CrossAnimationDi playing={stage === "crossing"} onDone={() => setStage("f1")} />
-
-        {stage === "intro" && (
-          <Btn onClick={() => setStage("crossing")} style={{ background: "linear-gradient(135deg,#0ea5e9,#6366f1)" }}>
-            🌱 두 쌍의 형질 동시 교배하기
-          </Btn>
-        )}
-
-        {(stage === "f1" || stage === "harvest" || stage === "reasoning" || stage === "meiosisPlaying" || stage === "punnett") && (
-          <div style={{ fontSize: 11, color: "#86efac", marginTop: 4 }}>
-            🧬 잡종 1대는 모두 RrYy 형태를 지니며, 우열의 원리에 의해 둥글고 황색 완두만 나타납니다.
-          </div>
-        )}
-      </div>
-
-      {/* f1 — 자가수분 유도 (기전은 아직 알려주지 않음) */}
-      {stage === "f1" && (
-        <div style={{
-          background: "rgba(255,255,255,0.018)", border: "1px solid rgba(56,189,248,0.18)",
-          borderRadius: 14, padding: "16px", marginBottom: 14, textAlign: "center",
-        }}>
-          <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 12, lineHeight: 1.6 }}>
-            2막에서 모양만 봤을 때는 3:1이 나왔죠. 이번엔 모양과 색깔, <strong>두 형질을 동시에</strong> 자가수분해서
-            키우면 어떤 조합이 나올지 관찰해봅시다.
-          </div>
-          <Btn onClick={() => setStage("harvest")} style={{ background: "linear-gradient(135deg,#a78bfa,#f472b6)" }}>
-            🌾 자가수분해서 수확해보기
-          </Btn>
-        </div>
-      )}
-
-      {/* harvest + reasoning — 라벨 없는 원시 데이터에서 곱셈 규칙을 스스로 추론 */}
-      {(stage === "harvest" || stage === "reasoning") && (
-        <div style={{
-          background: "rgba(255,255,255,0.018)", border: "1px solid rgba(56,189,248,0.18)",
-          borderRadius: 14, padding: "16px", marginBottom: 14, textAlign: "center",
-        }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: "#38bdf8", marginBottom: 10 }}>
-            🔍 실제 수확물 (64개) — 유전자형은 안 보이고 모양·색깔만 보입니다
-          </div>
-          <HarvestGrid items={harvest} size={16} />
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "5px 16px",
-            maxWidth: 340, margin: "12px auto 0", fontSize: 11.5,
-          }}>
-            <span>🟡⭕ 둥글고 황색 <strong style={{ color: "#facc15" }}>{hRoundYellow}개</strong></span>
-            <span>🟢⭕ 둥글고 녹색 <strong style={{ color: "#4ade80" }}>{hRoundGreen}개</strong></span>
-            <span>🟡🟫 주름지고 황색 <strong style={{ color: "#fbbf24" }}>{hWrinkledYellow}개</strong></span>
-            <span>🟢🟫 주름지고 녹색 <strong style={{ color: "#16a34a" }}>{hWrinkledGreen}개</strong></span>
-          </div>
-
-          {stage === "harvest" && (
-            <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 8 }}>
-                💭 네 조합의 개수가 제각각이네요. 2막에서 배운 3:1 규칙과 여기서 어떤 연결점을 찾을 수 있을까요?
-              </div>
-              <Btn onClick={() => setStage("reasoning")} style={{ background: "linear-gradient(135deg,#0ea5e9,#6366f1)" }}>
-                🧮 형질별로 따로 떼어 분석해보기
-              </Btn>
-            </div>
-          )}
-
-          {stage === "reasoning" && (
-            <div style={{ marginTop: 14, textAlign: "left" }}>
-              <div style={{
-                background: "rgba(0,0,0,0.15)", borderRadius: 10, padding: "12px 14px", marginBottom: 12, fontSize: 12, lineHeight: 1.8,
-              }}>
-                <strong style={{ color: "#7dd3fc" }}>1단계 — 색깔은 무시하고 모양만 세어보면?</strong><br />
-                둥근 것 ({hRoundYellow}+{hRoundGreen}=) <strong>{hRoundTotal}개</strong> : 주름진 것 ({hWrinkledYellow}+{hWrinkledGreen}=) <strong>{hWrinkledTotal}개</strong>
-                {" "}= <strong style={{ color: "#facc15" }}>{hRoundTotal / hWrinkledTotal} : 1</strong> — 어? 2막에서 봤던 그 비율이에요!
-                <br /><br />
-                <strong style={{ color: "#7dd3fc" }}>2단계 — 모양은 무시하고 색깔만 세어보면?</strong><br />
-                황색 ({hRoundYellow}+{hWrinkledYellow}=) <strong>{hYellowTotal}개</strong> : 녹색 ({hRoundGreen}+{hWrinkledGreen}=) <strong>{hGreenTotal}개</strong>
-                {" "}= <strong style={{ color: "#facc15" }}>{hYellowTotal / hGreenTotal} : 1</strong> — 색깔도 똑같이 3:1!
-              </div>
-
-              <div style={{ fontSize: 12, color: "#bae6fd", marginBottom: 10, textAlign: "center" }}>
-                🤔 모양 따로 3:1, 색깔 따로 3:1. 그럼 두 형질을 <strong>동시에</strong> 볼 때 네 조합의 비율은
-                이 두 3:1을 어떻게 합쳐야 나올까요?
-              </div>
-              <ChoiceButtons
-                options={["더한다 (3+1):(3+1)=4:4", "곱한다 (3:1)×(3:1)", "그대로 3:1", "무작위 1:1:1:1"]}
-                correctIndex={1}
-                correctFeedback={
-                  <>
-                    맞아요! <strong>(3:1) × (3:1) = 9:3:3:1</strong>. 실제로 우리 수확물은{" "}
-                    <strong>{hRoundYellow}:{hRoundGreen}:{hWrinkledYellow}:{hWrinkledGreen}</strong>이었는데, 이걸 4로 나누면
-                    정확히 <strong>9:3:3:1</strong>이 됩니다! 두 형질을 곱했을 때 실제 데이터와 맞아떨어진다는 것은,
-                    <strong> 모양과 색깔이 서로 전혀 영향을 주지 않고 독립적으로 유전된다</strong>는 뜻입니다.
-                    멘델은 바로 이 "곱셈이 들어맞는다"는 패턴에서 독립의 법칙을 떠올렸습니다.
-                  </>
-                }
-                onCorrect={() => setTimeout(() => setStage("meiosisPlaying"), 50)}
-              />
+          {picked !== null && (
+            <div style={{ textAlign: "center", marginTop: 20 }}>
+              <button className="btn btn-blue" onClick={handleNext}>{idx + 1 < QUIZ.length ? "다음 문제 →" : "결과 확인하기"}</button>
             </div>
           )}
         </div>
-      )}
+      );
+    }
 
-      {(stage === "meiosisPlaying" || stage === "punnett") && (
-        <div style={{
-          background: "rgba(255,255,255,0.022)", border: "1px solid rgba(80,135,200,0.12)",
-          borderRadius: 14, padding: "16px", marginBottom: 14, textAlign: "center",
-        }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: "#7dd3fc", marginBottom: 4 }}>
-            🧬 그렇다면 왜 곱셈이 성립할까? — 감수분열로 확인
-          </div>
-          <div style={{ fontSize: 10, color: "#4b6a90", maxWidth: 500, margin: "0 auto 6px", lineHeight: 1.5 }}>
-            ⚠️ <strong>단서</strong>: 모양과 색깔을 결정하는 유전자가 <strong>서로 다른 상동 염색체에 독립적으로 존재</strong>할 때만 연관 없이 독립의 법칙이 작용합니다.
-          </div>
+    /* ══════════════════════════════════════════════════
+       메인 앱 컨트롤러 (진행 상황 저장/복원 포함)
+    ══════════════════════════════════════════════════ */
+    function App() {
+      const [act, setAct] = useState(0);
+      const [maxUnlocked, setMaxUnlocked] = useState(0);
+      const [resetKey, setResetKey] = useState(0);
+      const [loaded, setLoaded] = useState(false);
+      const [showResume, setShowResume] = useState(false);
+      const [lastScore, setLastScore] = useState(null);
 
-          <MeiosisAnimationDi playing={stage === "meiosisPlaying"} onDone={() => setStage("punnett")} />
-        </div>
-      )}
+      useEffect(() => {
+        (async () => {
+          try {
+            const res = await window.storage.get('mendel_progress');
+            if (res && res.value) {
+              const data = JSON.parse(res.value);
+              if (data.maxUnlocked > 0) {
+                setMaxUnlocked(data.maxUnlocked);
+                setLastScore(typeof data.quizScore === 'number' ? data.quizScore : null);
+                setShowResume(true);
+              }
+            }
+          } catch (e) { /* 저장된 기록 없음 */ }
+          setLoaded(true);
+        })();
+      }, []);
 
-      {stage === "punnett" && (
-        <>
-          <div style={{
-            background: "rgba(255,255,255,0.022)", border: "1px solid rgba(80,135,200,0.12)",
-            borderRadius: 14, padding: "14px", marginBottom: 14, overflowX: "auto"
-          }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#7dd3fc", marginBottom: 10, textAlign: "center" }}>
-              양성잡종 16칸 퍼넷 매트릭스로 예측 검증 ({filled.length} / 16)
-            </div>
+      const persist = async (nextMax, quizScore) => {
+        try {
+          await window.storage.set('mendel_progress', JSON.stringify({ maxUnlocked: nextMax, quizScore: quizScore ?? lastScore, updatedAt: Date.now() }));
+        } catch (e) { /* 저장 실패 시 무시 - 학습 진행에는 영향 없음 */ }
+      };
 
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 14, minWidth: "310px" }}>
-              <div>
-                <div style={{ display: "grid", gridTemplateColumns: `50px repeat(4, 1fr)`, gap: 4 }}>
-                  <div></div>
-                  {GAMETES_DI.map((g, ci) => (
-                    <div key={g} style={{
-                      width: 56, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
-                      background: highlightIdx !== null && highlightIdx % 4 === ci ? "rgba(14,165,233,0.25)" : "rgba(167,139,250,0.12)",
-                      border: "1px solid rgba(167,139,250,0.3)", borderRadius: 6, fontSize: 11, fontWeight: 700, color: "#c4b5fd",
-                    }}>♂{g}</div>
-                  ))}
-                </div>
-                {GAMETES_DI.map((rowG, ri) => (
-                  <div key={rowG} style={{ display: "grid", gridTemplateColumns: `50px repeat(4, 1fr)`, gap: 4, marginTop: 4 }}>
-                    <div style={{
-                      width: 50, height: 56, display: "flex", alignItems: "center", justifyContent: "center",
-                      background: highlightIdx !== null && Math.floor(highlightIdx / 4) === ri ? "rgba(244,114,182,0.25)" : "rgba(244,114,182,0.12)",
-                      border: "1px solid rgba(244,114,182,0.3)", borderRadius: 6, fontSize: 11, fontWeight: 700, color: "#f9a8d4",
-                    }}>♀{rowG}</div>
-                    {GAMETES_DI.map((colG, ci) => {
-                      const idx = ri * 4 + ci;
-                      const isFilled = filled.includes(idx);
-                      const { round, yellow, genotype } = phenotypeDi(rowG, colG);
-                      return (
-                        <button
-                          key={idx}
-                          onMouseEnter={() => setHighlightIdx(idx)}
-                          onMouseLeave={() => setHighlightIdx(null)}
-                          onClick={() => toggleCell(idx)}
-                          style={{
-                            width: 56, height: 56, background: isFilled ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.01)",
-                            border: isFilled ? "1.5px solid #38bdf8" : "1px solid rgba(80,135,200,0.15)",
-                            borderRadius: 6, display: "flex", flexDirection: "column", cursor: "pointer",
-                            alignItems: "center", justifyContent: "center", transition: "all 0.2s",
-                          }}
-                        >
-                          {isFilled ? (
-                            <>
-                              <Pea round={round} yellow={yellow} size={25} />
-                              <GenotypeLabel text={genotype} fontSize={8.5} />
-                            </>
-                          ) : (
-                            <div style={{ fontSize: 14, color: "#1e3650" }}>?</div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
+      const goAct = n => { setAct(n); setMaxUnlocked(m => { const nm = Math.max(m, n); persist(nm); return nm; }); };
+      const restart = async () => {
+        setAct(0); setMaxUnlocked(0); setResetKey(k => k + 1); setLastScore(null);
+        try { await window.storage.delete('mendel_progress'); } catch (e) {}
+      };
+      const saveQuizResult = (score) => { setLastScore(score); persist(maxUnlocked, score); };
+
+      if (!loaded) return null;
+
+      return (
+        <div className="container">
+          <header style={{ textAlign: "center", marginBottom: 24 }}>
+            <div style={{ fontSize: 12, letterSpacing: 6, color: "#38bdf8", fontWeight: 800, marginBottom: 8 }}>MENDEL INQUIRY LAB</div>
+            <h1 style={{ fontSize: 32, fontWeight: 900, background: "linear-gradient(90deg,#e0f2fe 0%,#38bdf8 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: 0 }}>
+              멘델의 가설 검증 유전 실험실
+            </h1>
+          </header>
+
+          {showResume && (
+            <div className="panel fade-in" style={{ borderColor: "rgba(56,189,248,0.4)", textAlign: "center" }}>
+              <p className="text-body" style={{ marginBottom: 4 }}>
+                이전에 <strong style={{ color: "#38bdf8" }}>{maxUnlocked}막</strong>까지 진행한 기록이 있습니다.
+                {lastScore !== null && <> (종합 퀴즈 {lastScore}/{QUIZ.length}점)</>}
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 12 }}>
+                <button className="btn btn-blue" onClick={() => { setAct(maxUnlocked); setShowResume(false); }}>이어서 학습하기</button>
+                <button className="btn btn-outline" onClick={() => { restart(); setShowResume(false); }}>처음부터 다시하기</button>
               </div>
-            </div>
-
-            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-              <Btn onClick={() => setFilled(Array.from({ length: 16 }, (_, i) => i))} disabled={allDone} style={{ background: "linear-gradient(135deg,#0ea5e9,#6366f1)" }}>
-                ⚡ 매트릭스 전체 채우기
-              </Btn>
-            </div>
-          </div>
-
-          {filled.length > 0 && (
-            <div style={{
-              background: "rgba(255,255,255,0.018)", border: "1px solid rgba(80,130,200,0.1)",
-              borderRadius: 14, padding: "16px", marginBottom: 14,
-            }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#7dd3fc", marginBottom: 12, textAlign: "center" }}>
-                📊 두 형질 결합 표현형 누적 분리비 (이론치 9 : 3 : 3 : 1)
-              </div>
-              {PHENO_CONFIG.map(p => {
-                const cnt = counts[p.key];
-                const pct = (cnt / 16) * 100;
-                const expectPct = (p.expect / 16) * 100;
-                return (
-                  <div key={p.key} style={{ marginBottom: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <Pea round={p.round} yellow={p.yellow} size={18} />
-                      <span style={{ fontSize: 11, color: "#bae6fd", flex: 1 }}>{p.label}</span>
-                      <span style={{ fontFamily: "monospace", fontWeight: 800, fontSize: 12, color: p.color }}>{cnt} / 16 개</span>
-                    </div>
-                    <div style={{ height: 11, background: "rgba(255,255,255,0.04)", borderRadius: 5, overflow: "hidden", position: "relative" }}>
-                      <div style={{ position: "absolute", left: `${expectPct}%`, top: 0, bottom: 0, width: 2, background: "rgba(255,255,255,0.4)", zIndex: 2 }} />
-                      <div style={{ height: "100%", width: `${pct}%`, background: p.color, borderRadius: 5, transition: "width 0.3s" }} />
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           )}
 
-          {allDone && (
-            <div style={{
-              background: "linear-gradient(135deg, rgba(250,204,21,0.08), rgba(167,139,250,0.08))",
-              border: "1px solid rgba(250,204,21,0.3)", borderRadius: 14, padding: "20px 16px", marginBottom: 14, textAlign: "center",
-            }}>
-              <div style={{ fontSize: 14, fontWeight: 900, color: "#facc15", marginBottom: 10 }}>
-                🎉 양성잡종 독립 분리 교배 스크리닝 완결 (9 : 3 : 3 : 1)
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "center", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
-                {PHENO_CONFIG.map(p => (
-                  <div key={p.key} style={{ textAlign: "center", background: "rgba(0,0,0,0.2)", padding: "6px 12px", borderRadius: 8 }}>
-                    <Pea round={p.round} yellow={p.yellow} size={28} />
-                    <div style={{ fontSize: 14, fontWeight: 900, color: p.color, fontFamily: "monospace", marginTop: 2 }}>{counts[p.key]}</div>
-                  </div>
+          {!showResume && (
+            <React.Fragment>
+              <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 30, flexWrap: "wrap" }}>
+                {[0, 1, 2, 3, 4].map(n => (
+                  <button key={n} onClick={() => n <= maxUnlocked && goAct(n)} disabled={n > maxUnlocked}
+                    style={{ padding: "10px 18px", borderRadius: "24px", border: "none", background: act === n ? "linear-gradient(135deg,#0ea5e9,#4f46e5)" : n <= maxUnlocked ? "rgba(56,189,248,0.15)" : "rgba(30,41,59,0.5)", color: act === n ? "#fff" : n <= maxUnlocked ? "#7dd3fc" : "#475569", fontSize: 14, fontWeight: 800, cursor: n <= maxUnlocked ? "pointer" : "default", transition: "all 0.2s" }}>
+                    {n}막
+                  </button>
                 ))}
               </div>
 
-              <div style={{ fontSize: 12, color: "#fde68a", lineHeight: 1.75, textAlign: "left" }}>
-                💡 <strong>수학적 확률의 결합 법칙</strong><br />
-                두 형질을 따로 분리해 세어보면 <strong>둥근것 : 주름진것 = {roundTotal} : {wrinkledTotal}</strong> 이며,
-                <strong> 황색 : 녹색 = {yellowTotal} : {greenTotal}</strong> 이 나와 각각 3:1 비율을 깨끗이 유지합니다.
-                <br />앞서 여러분이 직접 발견했듯, 두 쌍의 대립형질이 서로 분리에 간섭을 주지 않으므로 각각의
-                분리비 확률이 곱해진 독립 곱사건 결과가 나타나는 것입니다:
-                <br /><span style={{ color: "#38bdf8", fontFamily: "monospace" }}>
-                  &nbsp;&nbsp;(둥근 모양 3 : 주름진 모양 1) × (노란색 3 : 초록색 1) = 9 : 3 : 3 : 1
-                </span>
+              <div key={resetKey}>
+                {act === 0 && <Act0PureLine onComplete={() => goAct(1)} />}
+                {act === 1 && <Act1Dominance onComplete={() => goAct(2)} />}
+                {act === 2 && <Act2Segregation onComplete={() => goAct(3)} />}
+                {act === 3 && <Act3Independence onComplete={() => goAct(4)} />}
+                {act === 4 && <Act4Quiz onRestart={restart} saveResult={saveQuizResult} />}
               </div>
-
-              <div style={{
-                marginTop: 12, padding: "12px 13px",
-                background: "rgba(0,0,0,0.18)", border: "1px solid rgba(250,204,21,0.18)",
-                borderRadius: 10, fontSize: 11.5, color: "#cbd5e1", lineHeight: 1.8, textAlign: "left",
-              }}>
-                📜 <strong style={{ color: "#facc15" }}>멘델의 실제 실험 데이터 (1865년 논문)</strong><br />
-                멘델은 이 두 형질 결합 교배에서 총 <strong>556개</strong>의 완두콩을 수확하여 분류했습니다.
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 14px", marginTop: 6 }}>
-                  <span>🟡⭕ 둥글고 황색 <strong style={{ color: "#facc15" }}>315개</strong></span>
-                  <span>🟢⭕ 둥글고 녹색 <strong style={{ color: "#4ade80" }}>108개</strong></span>
-                  <span>🟡🟫 주름지고 황색 <strong style={{ color: "#fbbf24" }}>101개</strong></span>
-                  <span>🟢🟫 주름지고 녹색 <strong style={{ color: "#16a34a" }}>32개</strong></span>
-                </div>
-                <div style={{ marginTop: 4, fontFamily: "monospace", color: "#86efac" }}>
-                  315 : 108 : 101 : 32 ≈ 9.8 : 3.4 : 3.2 : 1 — 이론치인 9:3:3:1 비율이 거의 정확히 성립!
-                </div>
-              </div>
-
-              <div style={{ marginTop: 14 }}>
-                <Btn onClick={onRestart} style={{ background: "transparent", color: "#64748b", border: "1px solid #334155" }}>
-                  ↩ 실험실 초기화 후 처음부터 보기
-                </Btn>
-              </div>
-            </div>
+            </React.Fragment>
           )}
-        </>
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════
-   메인 컨트롤러
-══════════════════════════════════════════════════ */
-function App() {
-  const [act, setAct] = useState(0);
-  const [maxUnlocked, setMaxUnlocked] = useState(0);
-  const [resetKey, setResetKey] = useState(0);
-
-  const goAct = n => {
-    setAct(n);
-    setMaxUnlocked(m => Math.max(m, n));
-  };
-
-  const restart = () => {
-    setAct(0); setMaxUnlocked(0); setResetKey(k => k + 1);
-  };
-
-  return (
-    <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(155deg,#06091c 0%,#09132a 55%,#060d1c 100%)",
-      color: "#d2e6ff",
-      fontFamily: `"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif`,
-      padding: "20px 14px 48px", boxSizing: "border-box",
-    }}>
-
-      <header style={{ textAlign: "center", marginBottom: 18 }}>
-        <div style={{ fontSize: 9, letterSpacing: 5, color: "#38bdf8", fontWeight: 700, marginBottom: 6 }}>
-          생식과 유전 · MENDEL INQUIRY LAB
         </div>
-        <h1 style={{
-          margin: 0, fontSize: 22, fontWeight: 900,
-          background: "linear-gradient(90deg,#e4f1ff 0%,#7dd3fc 100%)",
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-        }}>
-          멘델의 가설 검증 유전 실험실
-        </h1>
-        <p style={{ margin: "6px 0 0", color: "#4b6a90", fontSize: 12 }}>
-          순종 고정 수립부터 가설 설계, 데이터 수집과 과학적 모델 검증까지 — 전 과정을 추적합니다.
-        </p>
-      </header>
-
-      <ActBreadcrumb act={act} maxUnlocked={maxUnlocked} onJump={goAct} />
-
-      <div key={resetKey}>
-        {act === 0 && <Act0PureLine onComplete={() => goAct(1)} />}
-        {act === 1 && <Act1Dominance onComplete={() => goAct(2)} />}
-        {act === 2 && <Act2Segregation onComplete={() => goAct(3)} />}
-        {act === 3 && <Act3Independence onRestart={restart} />}
-      </div>
-
-      {/* ── 가설연역 구조 하단 요약판 ───────────────── */}
-      <div style={{
-        background: "rgba(56,189,248,0.04)", border: "1px solid rgba(56,189,248,0.15)",
-        borderRadius: 12, padding: "14px 16px", fontSize: 12, lineHeight: 1.8, color: "#bae6fd", marginTop: 10,
-      }}>
-        💡 <strong>핵심 가설연역적 탐구 매핑 가이드</strong><br />
-        • <strong>0막 순종 분리</strong>: 자가수분을 반복하면 이형접합(Rr) 비율이 매 세대 정확히 절반씩 줄어들어,
-        결국 거의 모든 개체가 순종(RR, rr)으로 수렴한다<br />
-        • <strong>1막 우열의 원리</strong>: 순종끼리 교배 시 잡종 1대(F1)에선 우성 형질만 발현
-        (예외적 현상이 존재하여 최신 과학 교육과정에서는 주로 '원리'로 표기)<br />
-        • <strong>2막 분리의 법칙</strong>: 생식세포 형성 시 대립유전자가 쪼개져 각각 분리되어 들어가
-        자손 2대(F2)에서 3:1 비율로 열성 재발현<br />
-        • <strong>3막 독립의 법칙</strong>: 모양과 색깔 유전자가 독립된 염색체에 존재하여 서로의 분리에
-        <strong> 간섭하지 않음</strong> → 개별 분리비의 독립적 곱사건 성립 (9:3:3:1)
-      </div>
-
-    </div>
-  );
-}
-
+      );
+    }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
