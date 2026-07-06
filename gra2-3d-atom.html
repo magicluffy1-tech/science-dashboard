@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>[가상 실험 2] 3D 화학식 조립 워크숍 - 실제 구조 매핑 v5.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Poppins:wght@600;700;800&display=swap');
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .font-poppins { font-family: 'Poppins', sans-serif; }
+        canvas { cursor: grab; touch-action: none; }
+        canvas:active { cursor: grabbing; }
+        .icon { font-style: normal; line-height: 1; display: inline-block; }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        .animate-pop-in { animation: popIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .analysis-chip { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 9999px; display:inline-flex; align-items:center; gap:4px; }
+        .analysis-ok { background: #DCFCE7; color: #15803D; }
+        .analysis-bad { background: #FEE2E2; color: #B91C1C; }
+
+        /* ── Tailwind CDN이 실패해도 레이아웃이 깨지지 않도록 하는 순수 CSS 백업 규칙 ── */
+        body.app-shell { display: flex !important; flex-direction: column !important; height: 100vh !important; width: 100vw !important; overflow: hidden !important; }
+        header.app-header { display: flex !important; align-items: center !important; justify-content: space-between !important; flex: 0 0 auto !important; }
+        .app-body { display: flex !important; flex: 1 1 auto !important; width: 100% !important; height: 100% !important; overflow: hidden !important; }
+        aside.app-aside { width: 320px !important; flex: 0 0 320px !important; display: flex !important; flex-direction: column !important; overflow-y: auto !important; }
+        main.app-main { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; position: relative !important; min-width: 0 !important; }
+        #atom-selector { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+        .modal-backdrop { position: fixed !important; inset: 0 !important; z-index: 60 !important; padding: 16px !important; align-items: center !important; justify-content: center !important; }
+        .modal-backdrop.hidden { display: none !important; }
+        .modal-backdrop.flex { display: flex !important; }
+        .compare-grid { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 16px !important; }
+        .canvas-area { flex: 1 1 auto !important; position: relative !important; min-height: 0 !important; }
+        footer.app-footer { display: flex !important; flex-wrap: wrap !important; align-items: center !important; justify-content: space-between !important; flex: 0 0 auto !important; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden select-none app-shell">
+
+    <header class="app-header bg-[#003366] text-white px-6 py-3 flex justify-between items-center shadow-md z-20">
+        <div class="flex items-center gap-3">
+            <span class="icon text-2xl text-[#11CAA0]">🧩</span>
+            <h1 class="text-xl font-bold tracking-wide">3D 화학식 조립 워크숍 <span class="text-xs font-normal text-gray-300 ml-2">Quest Mode v5.0</span></h1>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+            <div id="progress-pill" class="bg-white/10 text-white px-3 py-1 rounded-full font-bold text-xs cursor-pointer hover:bg-white/20" onclick="openSummary()">
+                진행 <span id="progress-count">0</span>/<span id="progress-total">15</span> 완료 · 전체보기
+            </div>
+            <span class="bg-[#11CAA0] text-white px-3 py-1 rounded-full font-medium shadow-sm">실제 분자 기하 구조 검증 환경</span>
+        </div>
+    </header>
+
+    <div class="app-body flex-grow flex w-full h-full overflow-hidden">
+
+        <aside class="app-aside w-85 bg-white border-r border-gray-200 p-5 flex flex-col gap-4 shadow-sm overflow-y-auto z-10">
+            <div id="tier-badge" class="text-center py-1.5 px-3 rounded-lg text-xs font-bold tracking-wider mb-1 text-white bg-blue-600">
+                교과서 기본 분자
+            </div>
+
+            <div>
+                <h2 class="text-sm font-bold text-[#003366] mb-2.5 flex items-center gap-2">
+                    <span class="icon">⚛️</span> 원자 라이브러리 (선택 생성)
+                </h2>
+                <div class="grid grid-cols-2 gap-2.5" id="atom-selector">
+                    <button onclick="createAtom('H')" class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:border-[#11CAA0] transition-all">
+                        <div class="w-8 h-8 rounded-full bg-gray-100 border border-gray-400 flex items-center justify-center text-gray-800 font-bold text-xs font-poppins shadow-inner">H</div>
+                        <div class="text-left"><p class="text-xs font-bold text-gray-700">수소</p><p class="text-[10px] text-gray-400">원자가:1</p></div>
+                    </button>
+                    <button onclick="createAtom('C')" class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:border-[#11CAA0] transition-all">
+                        <div class="w-8 h-8 rounded-full bg-gray-800 border border-gray-900 flex items-center justify-center text-white font-bold text-xs font-poppins shadow-inner">C</div>
+                        <div class="text-left"><p class="text-xs font-bold text-gray-700">탄소</p><p class="text-[10px] text-gray-400">원자가:4</p></div>
+                    </button>
+                    <button onclick="createAtom('N')" class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:border-[#11CAA0] transition-all">
+                        <div class="w-8 h-8 rounded-full bg-blue-600 border border-blue-700 flex items-center justify-center text-white font-bold text-xs font-poppins shadow-inner">N</div>
+                        <div class="text-left"><p class="text-xs font-bold text-gray-700">질소</p><p class="text-[10px] text-gray-400">원자가:3</p></div>
+                    </button>
+                    <button onclick="createAtom('O')" class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:border-[#11CAA0] transition-all">
+                        <div class="w-8 h-8 rounded-full bg-red-500 border border-red-600 flex items-center justify-center text-white font-bold text-xs font-poppins shadow-inner">O</div>
+                        <div class="text-left"><p class="text-xs font-bold text-gray-700">산소</p><p class="text-[10px] text-gray-400">원자가:2</p></div>
+                    </button>
+                    <button onclick="createAtom('Cl')" class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:border-[#11CAA0] transition-all">
+                        <div class="w-8 h-8 rounded-full bg-emerald-500 border border-emerald-600 flex items-center justify-center text-white font-bold text-xs font-poppins shadow-inner">Cl</div>
+                        <div class="text-left"><p class="text-xs font-bold text-gray-700">염소</p><p class="text-[10px] text-gray-400">원자가:1</p></div>
+                    </button>
+                    <button onclick="createAtom('S')" class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:border-[#11CAA0] transition-all">
+                        <div class="w-8 h-8 rounded-full bg-amber-400 border border-amber-500 flex items-center justify-center text-gray-800 font-bold text-xs font-poppins shadow-inner">S</div>
+                        <div class="text-left"><p class="text-xs font-bold text-gray-700">황</p><p class="text-[10px] text-gray-400">원자가:2</p></div>
+                    </button>
+                    <button onclick="createAtom('Na')" class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:border-[#11CAA0] transition-all">
+                        <div class="w-8 h-8 rounded-full bg-purple-500 border border-purple-600 flex items-center justify-center text-white font-bold text-xs font-poppins shadow-inner">Na</div>
+                        <div class="text-left"><p class="text-xs font-bold text-gray-700">나트륨</p><p class="text-[10px] text-gray-400">원자가:1</p></div>
+                    </button>
+                    <button onclick="createAtom('Ca')" class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:border-[#11CAA0] transition-all">
+                        <div class="w-8 h-8 rounded-full bg-orange-500 border border-orange-600 flex items-center justify-center text-white font-bold text-xs font-poppins shadow-inner">Ca</div>
+                        <div class="text-left"><p class="text-xs font-bold text-gray-700">칼슘</p><p class="text-[10px] text-gray-400">원자가:2</p></div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[11px] text-slate-500 leading-relaxed">
+                <p><span class="icon text-slate-400 mr-1">👆</span> 원자를 가까이 끌면 자동으로 결합됩니다.</p>
+                <p><span class="icon text-slate-400 mr-1">🔁</span> <strong>결합선을 클릭</strong>하면 단일→이중→삼중으로 차수가 바뀝니다 (원자가 전자 한도 내에서만).</p>
+                <p><span class="icon text-slate-400 mr-1">🗑️</span> 원자 <strong>우클릭(터치는 길게 누르기)</strong>으로 개별 삭제합니다.</p>
+            </div>
+
+            <div class="flex-grow flex flex-col min-h-[160px]">
+                <h2 class="text-sm font-bold text-[#003366] mb-2 flex items-center gap-2">
+                    <span class="icon">📋</span> 실험 탐구 퀘스트 목록
+                </h2>
+                <div class="flex-grow overflow-y-auto border border-gray-200 rounded-xl p-1 bg-gray-50 max-h-[220px]" id="mission-list-container"></div>
+            </div>
+
+            <div class="flex flex-col gap-2 mt-auto">
+                <button onclick="undoLast()" class="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold rounded-lg text-xs border border-amber-200 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                    <span class="icon">↩️</span> 최근 변경 되돌리기 (Undo)
+                </button>
+                <button onclick="clearWorkspace()" class="w-full py-2 bg-gray-100 hover:bg-red-50 text-red-600 font-medium rounded-lg text-xs border border-gray-200 hover:border-red-200 transition-colors flex items-center justify-center gap-2">
+                    <span class="icon">🗑️</span> 워크스페이스 비우기
+                </button>
+            </div>
+        </aside>
+
+        <main class="app-main flex-grow flex flex-col relative bg-[#f8faff]">
+
+            <div class="absolute top-6 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm px-6 py-3 rounded-full shadow-lg border-2 border-[#11CAA0] flex items-center gap-4 z-10 w-[460px] justify-between">
+                <div class="flex items-center gap-3">
+                    <div id="target-icon" class="text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-inner bg-blue-600">
+                        <span class="icon">🧪</span>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-gray-400 font-bold tracking-wildest uppercase">Target Molecule</div>
+                        <div class="text-[#003366] font-bold text-lg flex items-baseline gap-2">
+                            <span id="target-name">-</span>
+                            <span id="target-formula" class="text-[#11CAA0] font-poppins text-base"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="prevMission()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                        <span class="icon">⏮️</span>
+                    </button>
+                    <button onclick="nextMission()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                        <span class="icon">⏭️</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="analysis-panel" class="absolute top-24 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm px-5 py-2.5 rounded-2xl shadow-md border border-slate-200 z-10 max-w-[560px] flex flex-wrap gap-2 items-center justify-center">
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wide mr-1">실시간 검증</span>
+            </div>
+
+            <div id="warning-toast" class="absolute top-40 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-xl shadow-lg font-bold text-xs z-50 flex items-center gap-3 opacity-0 pointer-events-none transition-all duration-300 transform -translate-y-2 max-w-lg">
+                <span class="icon text-base animate-bounce">⚠️</span>
+                <span id="warning-message">최대 결합수 초과!</span>
+            </div>
+
+            <div id="success-modal-backdrop" class="modal-backdrop absolute inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+                <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-100 flex flex-col p-6 animate-pop-in max-h-[92vh] overflow-y-auto">
+                    <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-xl">
+                            <span class="icon">🏆</span>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-extrabold text-[#003366]">탐구 미션 완료! 결합 구조 검증</h2>
+                            <p class="text-xs text-slate-400">학생이 직접 배치한 구조와 실제 구조의 대조</p>
+                        </div>
+                    </div>
+
+                    <div class="compare-grid my-5 grid grid-cols-2 gap-4">
+                        <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex flex-col items-center">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase mb-2">내가 만든 구조</span>
+                            <div id="student-model-graphic" class="flex justify-center items-center bg-white rounded-xl border border-slate-200 min-h-[180px] w-full"></div>
+                        </div>
+                        <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex flex-col items-center">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase mb-2">실제 분자 구조</span>
+                            <div id="real-model-graphic" class="flex justify-center items-center bg-white rounded-xl border border-slate-200 min-h-[180px] w-full"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div id="real-structure-tags" class="flex flex-wrap gap-1 mb-1"></div>
+                        <h3 class="text-base font-bold text-slate-800 mt-1 mb-2" id="real-structure-title">-</h3>
+                        <p class="text-xs text-slate-600 leading-relaxed" id="real-structure-desc">-</p>
+                    </div>
+
+                    <button onclick="confirmMissionAndProceed()" class="w-full mt-4 py-3.5 bg-gradient-to-r from-[#003366] to-indigo-900 text-white font-bold rounded-xl text-sm shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                        <span>검증 완료 및 다음 미션 수행</span>
+                        <span class="icon">➡️</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="summary-modal-backdrop" class="modal-backdrop absolute inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+                <div class="bg-white rounded-3xl shadow-2xl max-w-xl w-full overflow-hidden border border-slate-100 flex flex-col p-6 animate-pop-in max-h-[85vh]">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+                        <h2 class="text-lg font-extrabold text-[#003366]">전체 진행 현황</h2>
+                        <button onclick="closeSummary()" class="text-slate-400 hover:text-slate-600"><span class="icon text-xl">✖️</span></button>
+                    </div>
+                    <div id="summary-list" class="overflow-y-auto flex flex-col gap-1.5 pr-1"></div>
+                </div>
+            </div>
+
+            <div class="canvas-area flex-grow relative border-b border-gray-200">
+                <canvas id="experiment-canvas" class="w-full h-full bg-[#FFFDF5]"></canvas>
+            </div>
+
+            <footer class="app-footer bg-white p-5 flex flex-col md:flex-row justify-between items-center gap-4 shadow-inner z-10">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                        <span class="icon text-2xl text-indigo-600">🔬</span>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-600">실시간 구조 역학 분석 엔진</h3>
+                        <p class="text-xs text-gray-400">결합선 추적을 통해 도출된 물질 화학식 기호 표현</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-6 bg-gray-50 border border-gray-200 px-10 py-3 rounded-2xl min-w-[340px] justify-center shadow-inner">
+                    <span class="text-gray-400 text-xs font-bold">실시간 분석식:</span>
+                    <span id="formula-display" class="text-3xl font-extrabold text-[#003366] tracking-wider font-poppins">-</span>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('experiment-canvas');
+        const ctx = canvas.getContext('2d');
+        const formulaDisplay = document.getElementById('formula-display');
+        const warningToast = document.getElementById('warning-toast');
+        const modalBackdrop = document.getElementById('success-modal-backdrop');
+        const analysisPanel = document.getElementById('analysis-panel');
+
+        // ── 실제 3D 분자 구조의 과학적 고정 SVG 템플릿 (완료 모달 - "실제 구조" 참고용) ──
+        const GEOMETRY_SVGS = {
+            H2O: `<svg width="160" height="160" viewBox="0 0 100 100">
+                    <line x1="50" y1="40" x2="25" y2="70" stroke="#334155" stroke-width="6"/>
+                    <line x1="50" y1="40" x2="75" y2="70" stroke="#334155" stroke-width="6"/>
+                    <circle cx="50" cy="40" r="18" fill="#EF4444" stroke="#DC2626" stroke-width="2"/>
+                    <circle cx="25" cy="70" r="12" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+                    <circle cx="75" cy="70" r="12" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+                    <text x="50" y="44" font-family='Poppins' font-size="10" font-weight="bold" fill="white" text-anchor="middle">O</text>
+                    <text x="25" y="74" font-family='Poppins' font-size="8" font-weight="bold" fill="#1E293B" text-anchor="middle">H</text>
+                    <text x="75" y="74" font-family='Poppins' font-size="8" font-weight="bold" fill="#1E293B" text-anchor="middle">H</text>
+                    <path d="M 35,52 A 15,15 0 0,0 65,52" fill="none" stroke="#F59E0B" stroke-width="2" stroke-dasharray="2,2"/>
+                    <text x="50" y="66" font-size="7" font-weight="bold" fill="#D97706" text-anchor="middle">104.5°</text>
+                  </svg>`,
+            CO2: `<svg width="180" height="160" viewBox="0 0 120 100">
+                    <line x1="25" y1="50" x2="95" y2="50" stroke="#334155" stroke-width="10"/>
+                    <line x1="25" y1="46" x2="95" y2="46" stroke="#FFF" stroke-width="2"/>
+                    <line x1="25" y1="54" x2="95" y2="54" stroke="#FFF" stroke-width="2"/>
+                    <circle cx="60" cy="50" r="18" fill="#334155" stroke="#0F172A" stroke-width="2"/>
+                    <circle cx="25" cy="50" r="15" fill="#EF4444" stroke="#DC2626" stroke-width="2"/>
+                    <circle cx="95" cy="50" r="15" fill="#EF4444" stroke="#DC2626" stroke-width="2"/>
+                    <text x="60" y="54" font-family='Poppins' font-size="10" font-weight="bold" fill="white" text-anchor="middle">C</text>
+                    <text x="25" y="54" font-family='Poppins' font-size="9" font-weight="bold" fill="white" text-anchor="middle">O</text>
+                    <text x="95" y="54" font-family='Poppins' font-size="9" font-weight="bold" fill="white" text-anchor="middle">O</text>
+                    <text x="60" y="26" font-size="8" font-weight="bold" fill="#64748B" text-anchor="middle">선형 구조 (180°)</text>
+                  </svg>`,
+            NH3: `<svg width="160" height="160" viewBox="0 0 100 100">
+                    <line x1="50" y1="35" x2="20" y2="70" stroke="#334155" stroke-width="5"/>
+                    <line x1="50" y1="35" x2="50" y2="75" stroke="#334155" stroke-width="5"/>
+                    <line x1="50" y1="35" x2="80" y2="70" stroke="#334155" stroke-width="5"/>
+                    <circle cx="50" cy="35" r="18" fill="#2563EB" stroke="#1D4ED8" stroke-width="2"/>
+                    <circle cx="20" cy="70" r="11" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+                    <circle cx="50" cy="75" r="11" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+                    <circle cx="80" cy="70" r="11" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+                    <text x="50" y="39" font-family='Poppins' font-size="10" font-weight="bold" fill="white" text-anchor="middle">N</text>
+                    <text x="50" y="93" font-size="7" font-weight="bold" fill="#D97706" text-anchor="middle">삼각뿔 구조 (107°)</text>
+                  </svg>`,
+            CH4: `<svg width="160" height="160" viewBox="0 0 100 100">
+                    <line x1="50" y1="50" x2="50" y2="20" stroke="#334155" stroke-width="5"/>
+                    <line x1="50" y1="50" x2="20" y2="75" stroke="#334155" stroke-width="5"/>
+                    <line x1="50" y1="50" x2="55" y2="80" stroke="#334155" stroke-width="3" stroke-dasharray="2,2"/>
+                    <line x1="50" y1="50" x2="80" y2="70" stroke="#334155" stroke-width="5"/>
+                    <circle cx="50" cy="50" r="18" fill="#334155" stroke="#0F172A" stroke-width="2"/>
+                    <circle cx="50" cy="20" r="11" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+                    <circle cx="20" cy="75" r="11" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+                    <circle cx="80" cy="70" r="11" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+                    <text x="50" y="54" font-family='Poppins' font-size="10" font-weight="bold" fill="white" text-anchor="middle">C</text>
+                    <text x="50" y="95" font-size="7" font-weight="bold" fill="#D97706" text-anchor="middle">정사면체 구조 (109.5°)</text>
+                  </svg>`,
+            O2: `<svg width="160" height="160" viewBox="0 0 100 100"><line x1="30" y1="47" x2="70" y2="47" stroke="#EF4444" stroke-width="6"/><line x1="30" y1="53" x2="70" y2="53" stroke="#EF4444" stroke-width="6"/><circle cx="30" cy="50" r="16" fill="#EF4444"/><circle cx="70" cy="50" r="16" fill="#EF4444"/><text x="30" y="53" fill="white" font-size="10" text-anchor="middle">O</text><text x="70" y="53" fill="white" font-size="10" text-anchor="middle">O</text></svg>`,
+            O3: `<svg width="160" height="160" viewBox="0 0 100 100"><line x1="50" y1="35" x2="25" y2="65" stroke="#EF4444" stroke-width="5"/><line x1="50" y1="35" x2="75" y2="65" stroke="#EF4444" stroke-width="5"/><circle cx="50" cy="35" r="15" fill="#EF4444"/><circle cx="25" cy="65" r="15" fill="#EF4444"/><circle cx="75" cy="65" r="15" fill="#EF4444"/><text x="50" y="78" font-size="8" fill="#D97706" text-anchor="middle">굽은형 (117°)</text></svg>`,
+            H2O2: `<svg width="160" height="160" viewBox="0 0 100 100"><line x1="35" y1="50" x2="65" y2="50" stroke="#EF4444" stroke-width="5"/><line x1="35" y1="50" x2="20" y2="30" stroke="#64748B" stroke-width="4"/><line x1="65" y1="50" x2="80" y2="70" stroke="#64748B" stroke-width="4"/><circle cx="35" cy="50" r="14" fill="#EF4444"/><circle cx="65" cy="50" r="14" fill="#EF4444"/><circle cx="20" cy="30" r="9" fill="#FFF"/><circle cx="80" cy="70" r="9" fill="#FFF"/><text x="50" y="90" font-size="8" fill="#64748B" text-anchor="middle">비틀린 개방형 구조</text></svg>`,
+            CO: `<svg width="160" height="160" viewBox="0 0 100 100"><line x1="35" y1="50" x2="65" y2="50" stroke="#334155" stroke-width="8"/><circle cx="35" cy="50" r="16" fill="#334155"/><circle cx="65" cy="50" r="15" fill="#EF4444"/><text x="35" y="53" fill="white" font-size="9" text-anchor="middle">C</text><text x="65" y="53" fill="white" font-size="9" text-anchor="middle">O</text></svg>`,
+            HCl: `<svg width="160" height="160" viewBox="0 0 100 100"><line x1="35" y1="50" x2="65" y2="50" stroke="#64748B" stroke-width="5"/><circle cx="35" cy="50" r="11" fill="#FFF" stroke="#94A3B8"/><circle cx="65" cy="50" r="16" fill="#10B981"/><text x="35" y="53" fill="#1E293B" font-size="8" text-anchor="middle">H</text><text x="65" y="53" fill="white" font-size="8" text-anchor="middle">Cl</text></svg>`,
+            CH3COOH: `<svg width="160" height="160" viewBox="0 0 100 100"><circle cx="35" cy="50" r="14" fill="#334155"/><circle cx="65" cy="50" r="14" fill="#334155"/><circle cx="65" cy="25" r="12" fill="#EF4444"/><circle cx="83" cy="65" r="12" fill="#EF4444"/><text x="50" y="90" font-size="8" fill="#475569" text-anchor="middle">평면 및 사면체 복합 구조</text></svg>`,
+            C2H5OH: `<svg width="160" height="160" viewBox="0 0 100 100"><circle cx="25" cy="50" r="13" fill="#334155"/><circle cx="55" cy="50" r="13" fill="#334155"/><circle cx="80" cy="35" r="12" fill="#EF4444"/><text x="50" y="90" font-size="8" fill="#475569" text-anchor="middle">사면체 사슬형 알코올</text></svg>`,
+            SO2: `<svg width="160" height="160" viewBox="0 0 100 100"><line x1="50" y1="40" x2="25" y2="65" stroke="#FBBF24" stroke-width="6"/><line x1="50" y1="40" x2="75" y2="65" stroke="#FBBF24" stroke-width="6"/><circle cx="50" cy="40" r="16" fill="#FBBF24"/><circle cx="25" cy="65" r="14" fill="#EF4444"/><circle cx="75" cy="65" r="14" fill="#EF4444"/><text x="50" y="78" font-size="8" fill="#D97706" text-anchor="middle">굽은형 (119°)</text></svg>`,
+            NO2: `<svg width="160" height="160" viewBox="0 0 100 100"><line x1="50" y1="40" x2="25" y2="65" stroke="#2563EB" stroke-width="5"/><line x1="50" y1="40" x2="75" y2="65" stroke="#2563EB" stroke-width="5"/><circle cx="50" cy="40" r="15" fill="#2563EB"/><circle cx="25" cy="65" r="14" fill="#EF4444"/><circle cx="75" cy="65" r="14" fill="#EF4444"/><text x="50" y="78" font-size="8" fill="#D97706" text-anchor="middle">굽은형 (134°)</text></svg>`,
+            NaCl: `<svg width="160" height="160" viewBox="0 0 100 100"><circle cx="35" cy="50" r="15" fill="#A855F7"/><circle cx="65" cy="50" r="18" fill="#10B981"/><text x="35" y="53" fill="white" font-size="8" text-anchor="middle">Na+</text><text x="65" y="53" fill="white" font-size="8" text-anchor="middle">Cl-</text><text x="50" y="85" font-size="8" fill="#7E22CE" text-anchor="middle">1:1 이온 결정 격자 구조</text></svg>`,
+            CaCl2: `<svg width="160" height="160" viewBox="0 0 100 100"><line x1="20" y1="50" x2="80" y2="50" stroke="#64748B" stroke-width="4"/><circle cx="50" cy="50" r="18" fill="#F97316"/><circle cx="20" cy="50" r="15" fill="#10B981"/><circle cx="80" cy="50" r="15" fill="#10B981"/><text x="50" y="53" fill="white" font-size="7" text-anchor="middle">Ca2+</text><text x="50" y="85" font-size="8" fill="#C2410C" text-anchor="middle">선형 배치 (1:2 결합)</text></svg>`,
+            NaHCO3: `<svg width="160" height="160" viewBox="0 0 100 100"><circle cx="30" cy="40" r="13" fill="#A855F7"/><circle cx="60" cy="45" r="14" fill="#334155"/><circle cx="85" cy="45" r="12" fill="#EF4444"/><text x="50" y="85" font-size="8" fill="#475569" text-anchor="middle">다원자 이온 복합체 구조</text></svg>`
+        };
+
+        const GEOMETRY_DESCS = {
+            O2: { title: "이원자 직선 분자", geometry: "Linear", angle: "180°", desc: "두 개의 산소 원자가 전자를 공유하여 강력한 이중 결합을 이루며, 완벽한 직선 형태로 결합이 고정됩니다." },
+            CO2: { title: "직선형 구조", geometry: "Linear", angle: "180°", desc: "탄소와 산소 사이의 이중 결합 2개가 중심 탄소를 기준으로 가장 멀리 위치하려는 전자쌍 반발 원리(VSEPR)에 의해 완전한 180도 대칭 직선을 이룹니다." },
+            CO: { title: "강력한 삼중결합 직선 분자", geometry: "Linear", angle: "180°", desc: "탄소와 산소가 삼중 결합 형태로 조밀하게 밀착되어 있으며, 일산화 탄소만의 독특한 배위 결합 특성을 나타내는 대칭 구조입니다." },
+            HCl: { title: "단순 공유 결합을 가진 극성 분자", geometry: "Linear", angle: "180°", desc: "두 원자가 단일 공유 결합으로 1:1 결합을 이루는 이원자 분자로 구조적으로 직선형이며, 전기음성도가 큰 염소 원자 쪽으로 전자쌍이 강력하게 치우치는 극성 분자입니다." },
+            H2O: { title: "굽은형 구조", geometry: "Bent", angle: "약 104.5°", desc: "중심 산소 원자에 존재하는 2쌍의 비공유 전자쌍이 결합선을 강하게 밀어내는 전자쌍 반발 원리(VSEPR)에 의해, 평면이 아닌 굽은 형태를 띠게 됩니다." },
+            O3: { title: "굽은형 구조 (공명 구조)", geometry: "Bent (Resonance)", angle: "약 117°", desc: "공명 구조에 의해 평균화된 굽은형으로, 중심 산소 원자의 비공유 전자쌍 반발력으로 인해 일직선이 되지 못하고 꺾인 형태를 유지합니다." },
+            SO2: { title: "굽은형 구조 (공명 구조)", geometry: "Bent (Resonance)", angle: "약 119°", desc: "공명 구조에 의해 평균화된 굽은형입니다. 황의 비공유 전자쌍 반발력(VSEPR)으로 인해 산소 원자들이 꺾이게 되며, 대칭이 무너진 극성 환경을 형성합니다." },
+            NO2: { title: "굽은형 구조 (공명 구조)", geometry: "Bent (Resonance)", angle: "약 134°", desc: "공명 구조에 의해 평균화된 굽은형입니다. 중심 질소 원자에 홀전자가 존재하여 공유 결합 전자쌍을 밀어내며, 비교적 넓은 굽은형 각도를 형성합니다." },
+            NH3: { title: "삼각뿔형 구조", geometry: "Trigonal Pyramidal", angle: "약 107°", desc: "질소 원자 상단의 비공유 전자쌍 1쌍이 아래쪽 3개의 수소 원자를 입체적으로 누르는 전자쌍 반발 원리(VSEPR)에 의해 정사면체 변형인 삼각뿔 기하 구조를 형성합니다." },
+            CH4: { title: "정사면체 구조", geometry: "Tetrahedral", angle: "109.5°", desc: "중심 탄소 원자에 결합한 4개의 수소 원자가 공간상에서 서로 동등한 척력(VSEPR)을 주고받으며 완벽한 대칭 구조인 109.5도의 정사면체를 이룹니다. (2D 화면 특성상 이 워크숍에서는 4개의 결합이 고르게 펼쳐지는지로 근사 판정합니다.)" },
+            H2O2: { title: "비평면 개방형(Open Book) 구조", geometry: "Non-planar", angle: "-", desc: "두 산소 원자의 단일 결합을 축으로 양 끝의 수소 원자들이 서로 다른 평면 상에 위치하여, 마치 반쯤 열린 책과 같은 입체적 뒤틀림을 가집니다. (2D 환경 특성상 이 분자는 각도 판정 없이 원자·결합 개수만 확인합니다.)" },
+            CH3COOH: { title: "메틸기와 카복실기의 복합 구조", geometry: "Complex", angle: "-", desc: "왼쪽 탄소는 수소 3개와 사면체를 이루고, 오른쪽 탄소는 산소와 이중결합 및 OH기와 결합하여 평면 구조를 형성하는 복합 유기 화합물입니다. (구조가 복잡해 이 워크숍에서는 원자·결합 개수만 확인합니다.)" },
+            C2H5OH: { title: "사슬형 사면체 구조", geometry: "Complex", angle: "-", desc: "두 개의 탄소가 연속으로 배치되어 각각 사면체 배치를 유지하고, 말단에 꺾인 구조의 하이드록시기(-OH)가 붙어 결합된 실생활 알코올 분자입니다. (구조가 복잡해 이 워크숍에서는 원자·결합 개수만 확인합니다.)" },
+            NaCl: { title: "이온 결정 격자", geometry: "Ionic Lattice", angle: "-", desc: "분자가 아니며, 양전하를 띤 나트륨 이온(Na+)과 음전하를 띤 염화 이온(Cl-)이 정전기적 인력에 의해 사방으로 교대 배열된 거대 결정 구조입니다." },
+            CaCl2: { title: "3차원 이온 결정 배위 구조", geometry: "Linear-like Ionic", angle: "약 180°", desc: "분자가 아니며, 칼슘 양이온 1개당 2개의 염화 음이온이 전기적 중성을 맞추기 위해 규칙적으로 인력을 주고받는 제설용 이온성 화합물 구조로, 단순화하면 선형에 가깝게 배치됩니다." },
+            NaHCO3: { title: "나트륨과 탄산수소 이온 층상 구조", geometry: "Ionic Lattice", angle: "-", desc: "분자가 아니며, 나트륨 양이온과 탄산수소 음이온 구조체가 수소 결합과 정전기적 인력으로 층상 정렬된 베이킹파우더의 화학적 고체 배치입니다. (구조가 복잡해 이 워크숍에서는 원자·결합 개수만 확인합니다.)" }
+        };
+
+        const missions = [
+            { id: 'H2O', name: '물', formula: 'H<sub>2</sub>O', tier: 'basic', tierName: '교과서 기본 분자', icon: '💧', color: 'bg-blue-600', req: {H:2, O:1, C:0, N:0, Cl:0, S:0, Na:0, Ca:0}, links: 4, displayOrder: ['H', 'O'] },
+            { id: 'CO2', name: '이산화 탄소', formula: 'CO<sub>2</sub>', tier: 'basic', tierName: '교과서 기본 분자', icon: '☁️', color: 'bg-blue-600', req: {C:1, O:2, H:0, N:0, Cl:0, S:0, Na:0, Ca:0}, links: 4, displayOrder: ['C', 'O'] },
+            { id: 'NH3', name: '암모니아', formula: 'NH<sub>3</sub>', tier: 'basic', tierName: '교과서 기본 분자', icon: '💨', color: 'bg-blue-600', req: {H:3, N:1, C:0, O:0, Cl:0, S:0, Na:0, Ca:0}, links: 6, displayOrder: ['N', 'H'] },
+            { id: 'CH4', name: '메테인', formula: 'CH<sub>4</sub>', tier: 'basic', tierName: '교과서 기본 분자', icon: '🔥', color: 'bg-blue-600', req: {H:4, C:1, O:0, N:0, Cl:0, S:0, Na:0, Ca:0}, links: 8, displayOrder: ['C', 'H'] },
+            { id: 'O2', name: '산소', formula: 'O<sub>2</sub>', tier: 'tier1', tierName: '1단계: 함정 비교 세트', icon: '🫁', color: 'bg-emerald-600', req: {O:2, H:0, C:0, N:0, Cl:0, S:0, Na:0, Ca:0}, links: 2, displayOrder: ['O'] },
+            { id: 'O3', name: '오존', formula: 'O<sub>3</sub>', tier: 'tier1', tierName: '1단계: 함정 비교 세트', icon: '🛡️', color: 'bg-emerald-600', req: {O:3, H:0, C:0, N:0, Cl:0, S:0, Na:0, Ca:0}, links: 4, displayOrder: ['O'] },
+            { id: 'H2O2', name: '과산화 수소', formula: 'H<sub>2</sub>O<sub>2</sub>', tier: 'tier1', tierName: '1단계: 함정 비교 세트', icon: '🩹', color: 'bg-emerald-600', req: {H:2, O:2, C:0, N:0, Cl:0, S:0, Na:0, Ca:0}, links: 6, displayOrder: ['H', 'O'] },
+            { id: 'CO', name: '일산화 탄소', formula: 'CO', tier: 'tier1', tierName: '1단계: 함정 비교 세트', icon: '☠️', color: 'bg-emerald-600', req: {C:1, O:1, H:0, N:0, Cl:0, S:0, Na:0, Ca:0}, links: 2, displayOrder: ['C', 'O'] },
+            { id: 'HCl', name: '염화 수소', formula: 'HCl', tier: 'tier1', tierName: '1단계: 함정 비교 세트', icon: '🧪', color: 'bg-emerald-600', req: {H:1, Cl:1, C:0, N:0, O:0, S:0, Na:0, Ca:0}, links: 2, displayOrder: ['H', 'Cl'] },
+            { id: 'CH3COOH', name: '아세트산 (식초)', formula: 'CH<sub>3</sub>COOH', tier: 'tier2', tierName: '2단계: 실생활 심화 세트', icon: '🍽️', color: 'bg-amber-600', req: {C:2, H:4, O:2, N:0, Cl:0, S:0, Na:0, Ca:0}, links: 14, textFormula: 'CH<sub>3</sub>COOH' },
+            { id: 'C2H5OH', name: '에탄올 (알코올)', formula: 'C<sub>2</sub>H<sub>5</sub>OH', tier: 'tier2', tierName: '2단계: 실생활 심화 세트', icon: '🍾', color: 'bg-amber-600', req: {C:2, H:6, O:1, N:0, Cl:0, S:0, Na:0, Ca:0}, links: 16, textFormula: 'C<sub>2</sub>H<sub>5</sub>OH' },
+            { id: 'SO2', name: '이산화 황', formula: 'SO<sub>2</sub>', tier: 'tier2', tierName: '2단계: 실생활 심화 세트', icon: '🌫️', color: 'bg-amber-600', req: {S:1, O:2, C:0, H:0, N:0, Cl:0, Na:0, Ca:0}, links: 4, displayOrder: ['S', 'O'] },
+            { id: 'NO2', name: '이산화 질소', formula: 'NO<sub>2</sub>', tier: 'tier2', tierName: '2단계: 실생활 심화 세트', icon: '🏭', color: 'bg-amber-600', req: {N:1, O:2, C:0, H:0, Cl:0, S:0, Na:0, Ca:0}, links: 4, displayOrder: ['N', 'O'] },
+            { id: 'NaCl', name: '염화 나트륨 (소금)', formula: 'NaCl', tier: 'tier3', tierName: '3단계: 이온 화합물 블록', icon: '🧊', color: 'bg-purple-700', req: {Na:1, Cl:1, C:0, H:0, N:0, O:0, S:0, Ca:0}, links: 2, displayOrder: ['Na', 'Cl'] },
+            { id: 'CaCl2', name: '염화 칼슘 (제설제)', formula: 'CaCl<sub>2</sub>', tier: 'tier3', tierName: '3단계: 이온 화합물 블록', icon: '❄️', color: 'bg-purple-700', req: {Ca:1, Cl:2, C:0, H:0, N:0, O:0, S:0, Na:0}, links: 4, displayOrder: ['Ca', 'Cl'] },
+            { id: 'NaHCO3', name: '탄산수소 나트륨', formula: 'NaHCO<sub>3</sub>', tier: 'tier3', tierName: '3단계: 이온 화합물 블록', icon: '🍞', color: 'bg-purple-700', req: {Na:1, H:1, C:1, O:3, N:0, Cl:0, S:0, Ca:0}, links: 12, textFormula: 'NaHCO<sub>3</sub>' }
+        ];
+
+        // ── 구조/각도 실제 검증 스펙 (2D 근사, 결합 차수 포함) ──
+        const MISSION_GEOMETRY = {
+            H2O:   { category: 'central',  central: 'O', subType: 'H',  subCount: 2, order: 1,     angleMode: 'pair',     angleTarget: 104.5, angleTol: 30 },
+            CO2:   { category: 'central',  central: 'C', subType: 'O',  subCount: 2, order: 2,     angleMode: 'pair',     angleTarget: 180,   angleTol: 20 },
+            NH3:   { category: 'central',  central: 'N', subType: 'H',  subCount: 3, order: 1,     angleMode: 'allpairs', angleTarget: 107,   angleTol: 32 },
+            CH4:   { category: 'central',  central: 'C', subType: 'H',  subCount: 4, order: 1,     angleMode: 'spread',   angleTarget: 55,    angleTol: 0, note: '2D 근사: 4개 결합이 고르게 펼쳐지는지 확인' },
+            O2:    { category: 'diatomic', pair: ['O','O'], order: 2 },
+            O3:    { category: 'central',  central: 'O', subType: 'O',  subCount: 2, order: 'flex', angleMode: 'pair',    angleTarget: 117,   angleTol: 25 },
+            CO:    { category: 'diatomic', pair: ['C','O'], order: 3 },
+            HCl:   { category: 'diatomic', pair: ['H','Cl'], order: 1 },
+            SO2:   { category: 'central',  central: 'S', subType: 'O',  subCount: 2, order: 'flex', angleMode: 'pair',    angleTarget: 119,   angleTol: 25 },
+            NO2:   { category: 'central',  central: 'N', subType: 'O',  subCount: 2, order: 'flex', angleMode: 'pair',    angleTarget: 134,   angleTol: 30 },
+            NaCl:  { category: 'diatomic', pair: ['Na','Cl'], order: 1 },
+            CaCl2: { category: 'central',  central: 'Ca', subType: 'Cl', subCount: 2, order: 1,     angleMode: 'pair',    angleTarget: 180,   angleTol: 25 },
+            H2O2:  { category: 'legacy' },
+            CH3COOH:{ category: 'legacy' },
+            C2H5OH: { category: 'legacy' },
+            NaHCO3: { category: 'legacy' }
+        };
+
+        let currentMissionIdx = 0;
+        let isMissionComplete = false;
+        let completedMissionIds = new Set();
+
+        const ATOM_PROPERTIES = {
+            'H': { radius: 24, color: '#F8FAFC', borderColor: '#94A3B8', textColor: '#1E293B', maxBonds: 1 },
+            'C': { radius: 38, color: '#334155', borderColor: '#0F172A', textColor: '#FFFFFF', maxBonds: 4 },
+            'N': { radius: 35, color: '#2563EB', borderColor: '#1D4ED8', textColor: '#FFFFFF', maxBonds: 3 },
+            'O': { radius: 34, color: '#EF4444', borderColor: '#DC2626', textColor: '#FFFFFF', maxBonds: 2 },
+            'Cl':{ radius: 36, color: '#10B981', borderColor: '#047857', textColor: '#FFFFFF', maxBonds: 1 },
+            'S': { radius: 37, color: '#FBBF24', borderColor: '#D97706', textColor: '#1E293B', maxBonds: 2 },
+            'Na':{ radius: 40, color: '#A855F7', borderColor: '#7E22CE', textColor: '#FFFFFF', maxBonds: 1 },
+            'Ca':{ radius: 44, color: '#F97316', borderColor: '#C2410C', textColor: '#FFFFFF', maxBonds: 2 }
+        };
+
+        let atoms = [];
+        let bonds = []; // { id, a, b, order }
+        let particles = [];
+        let actionHistory = []; // { type:'createBond'|'orderChange'|'deleteAtom', ... }
+        let selectedAtom = null;
+        let isDragging = false;
+        let dragMoved = false;
+        let offsetX = 0, offsetY = 0;
+        let longPressTimer = null;
+        let bondIdSeq = 1;
+        let highlightBondId = null;
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // ── 저장소 (독립 실행형 웹페이지이므로 localStorage 사용, 실패해도 학습에는 영향 없음) ──
+        function loadCompletedFromStorage() {
+            try {
+                const raw = localStorage.getItem('mol_workshop_completed');
+                if (raw) completedMissionIds = new Set(JSON.parse(raw));
+            } catch (e) { /* 저장된 기록 없음 */ }
+        }
+        function saveCompletedToStorage() {
+            try { localStorage.setItem('mol_workshop_completed', JSON.stringify([...completedMissionIds])); } catch (e) {}
+        }
+
+        function updateProgressPill() {
+            document.getElementById('progress-count').innerText = completedMissionIds.size;
+            document.getElementById('progress-total').innerText = missions.length;
+        }
+
+        function renderMissionList() {
+            const container = document.getElementById('mission-list-container');
+            container.innerHTML = "";
+            missions.forEach((m, idx) => {
+                const btn = document.createElement('button');
+                const done = completedMissionIds.has(m.id);
+                btn.className = `w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex justify-between items-center mb-1 transition-all ${idx === currentMissionIdx ? 'bg-[#003366] text-white shadow-md' : done ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-200'}`;
+                btn.onclick = () => { selectMission(idx); };
+
+                let dotColor = "bg-blue-500";
+                if(m.tier === 'tier1') dotColor = "bg-emerald-500";
+                if(m.tier === 'tier2') dotColor = "bg-amber-500";
+                if(m.tier === 'tier3') dotColor = "bg-purple-500";
+
+                btn.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full ${dotColor}"></span>
+                        <span>${idx+1}. ${m.name}</span>
+                    </div>
+                    <span class="flex items-center gap-1.5">
+                        <span class="font-poppins ${idx === currentMissionIdx ? 'text-teal-300' : 'text-gray-400'}">${m.formula}</span>
+                        ${done ? '<span class="icon text-emerald-500">✅</span>' : ''}
+                    </span>
+                `;
+                container.appendChild(btn);
+            });
+            updateProgressPill();
+        }
+
+        function selectMission(idx) {
+            currentMissionIdx = idx;
+            isMissionComplete = false;
+            modalBackdrop.classList.remove('flex');
+            modalBackdrop.classList.add('hidden');
+
+            const current = missions[currentMissionIdx];
+            document.getElementById('target-name').innerText = current.name;
+            document.getElementById('target-formula').innerHTML = current.formula;
+
+            const badge = document.getElementById('tier-badge');
+            badge.innerText = current.tierName;
+            badge.className = `text-center py-1.5 px-3 rounded-lg text-xs font-bold tracking-wider mb-1 text-white ${current.color}`;
+
+            const iconBox = document.getElementById('target-icon');
+            iconBox.className = `text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-inner ${current.color}`;
+            iconBox.innerHTML = `<span class="icon text-xl">${current.icon}</span>`;
+
+            renderMissionList();
+            clearWorkspace();
+        }
+
+        function nextMission() { selectMission((currentMissionIdx + 1) % missions.length); }
+        function prevMission() { selectMission((currentMissionIdx - 1 + missions.length) % missions.length); }
+
+        function openSummary() {
+            const list = document.getElementById('summary-list');
+            list.innerHTML = "";
+            const tiers = [
+                { key:'basic', label:'교과서 기본 분자', color:'text-blue-600' },
+                { key:'tier1', label:'1단계: 함정 비교 세트', color:'text-emerald-600' },
+                { key:'tier2', label:'2단계: 실생활 심화 세트', color:'text-amber-600' },
+                { key:'tier3', label:'3단계: 이온 화합물 블록', color:'text-purple-600' }
+            ];
+            tiers.forEach(t => {
+                const header = document.createElement('div');
+                header.className = `text-xs font-bold mt-2 mb-1 ${t.color}`;
+                header.innerText = t.label;
+                list.appendChild(header);
+                missions.filter(m => m.tier === t.key).forEach(m => {
+                    const done = completedMissionIds.has(m.id);
+                    const row = document.createElement('div');
+                    row.className = `flex items-center justify-between px-3 py-2 rounded-lg text-sm ${done ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-400'}`;
+                    row.innerHTML = `<span>${m.name} (<span class="font-poppins">${m.formula}</span>)</span><span class="icon">${done ? '✅' : '⚪'}</span>`;
+                    list.appendChild(row);
+                });
+            });
+            document.getElementById('summary-modal-backdrop').classList.remove('hidden');
+            document.getElementById('summary-modal-backdrop').classList.add('flex');
+        }
+        function closeSummary() {
+            document.getElementById('summary-modal-backdrop').classList.remove('flex');
+            document.getElementById('summary-modal-backdrop').classList.add('hidden');
+        }
+
+        function createAtom(type) {
+            if(isMissionComplete) return;
+            const props = ATOM_PROPERTIES[type];
+            const margin = 120;
+            const x = Math.random() * (canvas.width - margin * 2) + margin;
+            const y = Math.random() * (canvas.height - margin * 2) + margin;
+
+            atoms.push({
+                id: Date.now() + Math.random(),
+                type: type, x: x, y: y,
+                radius: props.radius, color: props.color, borderColor: props.borderColor,
+                textColor: props.textColor, maxBonds: props.maxBonds,
+                vx: 0, vy: 0, flashFrame: 0
+            });
+            updateAnalysis();
+        }
+
+        function clearWorkspace() {
+            atoms = []; bonds = []; actionHistory = [];
+            formulaDisplay.innerHTML = "-";
+            updateAnalysis();
+        }
+
+        // ── 결합 차수/원자가 계산 헬퍼 ──
+        function capacityUsed(atomId) {
+            return bonds.filter(b => b.a === atomId || b.b === atomId).reduce((s,b) => s + b.order, 0);
+        }
+        function getBondBetween(id1, id2) {
+            return bonds.find(b => (b.a===id1 && b.b===id2) || (b.a===id2 && b.b===id1));
+        }
+        function getAtom(id) { return atoms.find(a => a.id === id); }
+
+        function deleteAtom(atomId, record=true) {
+            const removedBonds = bonds.filter(b => b.a===atomId || b.b===atomId);
+            const atom = getAtom(atomId);
+            if (record && atom) {
+                actionHistory.push({ type:'deleteAtom', atom: {...atom}, removedBonds: removedBonds.map(b=>({...b})) });
+            }
+            bonds = bonds.filter(b => b.a!==atomId && b.b!==atomId);
+            atoms = atoms.filter(a => a.id !== atomId);
+            updateAnalysis();
+        }
+
+        function undoLast() {
+            if (isMissionComplete || actionHistory.length === 0) return;
+            const act = actionHistory.pop();
+            if (act.type === 'createBond') {
+                bonds = bonds.filter(b => b.id !== act.bondId);
+            } else if (act.type === 'orderChange') {
+                const b = bonds.find(x => x.id === act.bondId);
+                if (b) b.order = act.prevOrder;
+            } else if (act.type === 'deleteAtom') {
+                atoms.push(act.atom);
+                act.removedBonds.forEach(b => bonds.push(b));
+            }
+            updateAnalysis();
+        }
+
+        // ── 포인터 좌표 통합 처리 (마우스/터치 공용) ──
+        function getPointerPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            if (e.touches && e.touches.length) {
+                return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+            }
+            if (e.changedTouches && e.changedTouches.length) {
+                return { x: e.changedTouches[0].clientX - rect.left, y: e.changedTouches[0].clientY - rect.top };
+            }
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
+
+        function distToSegment(p, v, w) {
+            const l2 = (v.x-w.x)**2 + (v.y-w.y)**2;
+            if (l2 === 0) return Math.hypot(p.x-v.x, p.y-v.y);
+            let t = ((p.x-v.x)*(w.x-v.x) + (p.y-v.y)*(w.y-v.y)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            const proj = { x: v.x + t*(w.x-v.x), y: v.y + t*(w.y-v.y) };
+            return Math.hypot(p.x-proj.x, p.y-proj.y);
+        }
+
+        function findBondAtPoint(pos) {
+            for (const b of bonds) {
+                const a1 = getAtom(b.a), a2 = getAtom(b.b);
+                if (!a1 || !a2) continue;
+                if (distToSegment(pos, a1, a2) <= 10) return b;
+            }
+            return null;
+        }
+
+        function findAtomAtPoint(pos) {
+            for (let i = atoms.length - 1; i >= 0; i--) {
+                if (Math.hypot(atoms[i].x - pos.x, atoms[i].y - pos.y) < atoms[i].radius) return atoms[i];
+            }
+            return null;
+        }
+
+        function cycleBondOrder(bond) {
+            const a1 = getAtom(bond.a), a2 = getAtom(bond.b);
+            if (!a1 || !a2) return;
+            const newOrder = bond.order < 3 ? bond.order + 1 : 1;
+            const delta = newOrder - bond.order;
+            const cap1 = capacityUsed(a1.id) - bond.order + newOrder;
+            const cap2 = capacityUsed(a2.id) - bond.order + newOrder;
+            if (delta > 0 && (cap1 > a1.maxBonds || cap2 > a2.maxBonds)) {
+                document.getElementById('warning-message').innerText = `원자가 전자 부족! ${a1.type}, ${a2.type} 중 하나가 결합수 한도를 초과합니다.`;
+                showWarning();
+                a1.flashFrame = 12; a2.flashFrame = 12;
+                return;
+            }
+            actionHistory.push({ type:'orderChange', bondId: bond.id, prevOrder: bond.order });
+            bond.order = newOrder;
+            updateAnalysis();
+        }
+
+        function showWarning() {
+            warningToast.style.opacity = '1';
+            warningToast.style.transform = 'translate(-50%, 0)';
+            setTimeout(() => {
+                warningToast.style.opacity = '0';
+                warningToast.style.transform = 'translate(-50%, -8px)';
+            }, 2600);
+        }
+
+        // ── 입력 처리 (마우스 + 터치 공용) ──
+        function handleDown(e) {
+            if (isMissionComplete) return;
+            const pos = getPointerPos(e);
+            const atom = findAtomAtPoint(pos);
+            if (atom) {
+                selectedAtom = atom; isDragging = true; dragMoved = false;
+                offsetX = pos.x - atom.x; offsetY = pos.y - atom.y;
+                if (e.touches) {
+                    longPressTimer = setTimeout(() => {
+                        if (!dragMoved) {
+                            deleteAtom(atom.id);
+                            isDragging = false; selectedAtom = null;
+                        }
+                    }, 550);
+                }
+                return;
+            }
+            const bond = findBondAtPoint(pos);
+            if (bond) { cycleBondOrder(bond); }
+        }
+        function handleMove(e) {
+            if (!isDragging || !selectedAtom || isMissionComplete) return;
+            const pos = getPointerPos(e);
+            dragMoved = true;
+            if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            selectedAtom.x = pos.x - offsetX;
+            selectedAtom.y = pos.y - offsetY;
+            checkProximityMechanics(selectedAtom);
+        }
+        function handleUp() {
+            if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            isDragging = false; selectedAtom = null;
+        }
+
+        canvas.addEventListener('mousedown', handleDown);
+        canvas.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleUp);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleDown(e); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); }, { passive: false });
+        canvas.addEventListener('touchend', (e) => { e.preventDefault(); handleUp(); }, { passive: false });
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const pos = getPointerPos(e);
+            const atom = findAtomAtPoint(pos);
+            if (atom && !isMissionComplete) deleteAtom(atom.id);
+        });
+
+        function checkProximityMechanics(activeAtom) {
+            const snapThreshold = 110;
+            for (let atom of atoms) {
+                if (atom.id === activeAtom.id) continue;
+                const dist = Math.hypot(atom.x - activeAtom.x, atom.y - activeAtom.y);
+                if (dist < snapThreshold && !getBondBetween(activeAtom.id, atom.id)) {
+                    if (capacityUsed(activeAtom.id) + 1 > activeAtom.maxBonds || capacityUsed(atom.id) + 1 > atom.maxBonds) {
+                        triggerRepulsion(activeAtom, atom);
+                        return;
+                    }
+                    const angle = Math.atan2(activeAtom.y - atom.y, activeAtom.x - atom.x);
+                    const targetDist = activeAtom.radius + atom.radius + 22;
+                    activeAtom.x = atom.x + Math.cos(angle) * targetDist;
+                    activeAtom.y = atom.y + Math.sin(angle) * targetDist;
+
+                    const newBond = { id: bondIdSeq++, a: activeAtom.id, b: atom.id, order: 1 };
+                    bonds.push(newBond);
+                    actionHistory.push({ type:'createBond', bondId: newBond.id });
+                    updateAnalysis();
+                    break;
+                }
+            }
+        }
+
+        function triggerRepulsion(activeAtom, targetAtom) {
+            const angle = Math.atan2(activeAtom.y - targetAtom.y, activeAtom.x - targetAtom.x);
+            const force = 25;
+            activeAtom.vx = Math.cos(angle) * force;
+            activeAtom.vy = Math.sin(angle) * force;
+            activeAtom.flashFrame = 15;
+
+            document.getElementById('warning-message').innerText = `결합 불가! ${targetAtom.type}(원자가 ${targetAtom.maxBonds}), ${activeAtom.type}(원자가 ${activeAtom.maxBonds}) 한도 초과`;
+            showWarning();
+            isDragging = false; selectedAtom = null;
+        }
+
+        // ── 각도 계산 헬퍼 ──
+        function angleDiffDeg(a1, a2) {
+            let d = Math.abs(a1 - a2) % 360;
+            if (d > 180) d = 360 - d;
+            return d;
+        }
+
+        function findCentralCandidate(geo) {
+            const candidates = atoms.filter(a => a.type === geo.central);
+            for (const c of candidates) {
+                const relevant = bonds.filter(b => b.a === c.id || b.b === c.id);
+                if (relevant.length !== geo.subCount) continue;
+                let valid = true;
+                const subs = [];
+                for (const b of relevant) {
+                    const otherId = b.a === c.id ? b.b : b.a;
+                    const other = getAtom(otherId);
+                    if (!other || other.type !== geo.subType) { valid = false; break; }
+                    if (geo.order !== 'flex' && b.order !== geo.order) { valid = false; break; }
+                    if (geo.order === 'flex' && b.order < 1) { valid = false; break; }
+                    subs.push(other);
+                }
+                if (valid) return { central: c, subs };
+            }
+            return null;
+        }
+
+        function checkGeometry(geo, central, subs) {
+            const angles = subs.map(s => Math.atan2(s.y - central.y, s.x - central.x) * 180 / Math.PI);
+            if (geo.angleMode === 'pair') {
+                const diff = angleDiffDeg(angles[0], angles[1]);
+                return { ok: Math.abs(diff - geo.angleTarget) <= geo.angleTol, current: diff, target: geo.angleTarget, tol: geo.angleTol };
+            }
+            if (geo.angleMode === 'allpairs') {
+                let diffs = [];
+                for (let i=0; i<angles.length; i++) for (let j=i+1; j<angles.length; j++) diffs.push(angleDiffDeg(angles[i], angles[j]));
+                const ok = diffs.every(d => Math.abs(d - geo.angleTarget) <= geo.angleTol);
+                const avg = diffs.reduce((a,b)=>a+b,0) / diffs.length;
+                return { ok, current: avg, target: geo.angleTarget, tol: geo.angleTol };
+            }
+            if (geo.angleMode === 'spread') {
+                let norm = angles.map(a => (a + 360) % 360).sort((a,b)=>a-b);
+                let gaps = [];
+                for (let i=0; i<norm.length; i++) {
+                    const next = norm[(i+1) % norm.length];
+                    let gap = (next - norm[i] + 360) % 360;
+                    if (gap === 0) gap = 360;
+                    gaps.push(gap);
+                }
+                const minGap = Math.min(...gaps);
+                return { ok: minGap >= geo.angleTarget, current: minGap, target: geo.angleTarget, tol: 0, isSpread: true };
+            }
+        }
+
+        function checkDiatomicGeo(geo) {
+            const bond = bonds.find(b => {
+                const a1 = getAtom(b.a), a2 = getAtom(b.b);
+                if (!a1 || !a2) return false;
+                const types = [a1.type, a2.type].sort();
+                const req = [...geo.pair].sort();
+                return types[0]===req[0] && types[1]===req[1] && b.order===geo.order;
+            });
+            return { ok: !!bond };
+        }
+
+        function evaluateStructure(mission) {
+            const geo = MISSION_GEOMETRY[mission.id];
+            if (!geo || geo.category === 'legacy') {
+                let totalBondsSum = 0;
+                atoms.forEach(a => totalBondsSum += capacityUsed(a.id));
+                return { legacy: true, ok: totalBondsSum >= (mission.links || 0) };
+            }
+            if (geo.category === 'diatomic') return { ...checkDiatomicGeo(geo), geo };
+            if (geo.category === 'central') {
+                const found = findCentralCandidate(geo);
+                if (!found) return { ok: false, geo, missingCentral: true };
+                // 연결 구조(원자 종류 + 결합 차수)만 맞으면 통과. 각도는 참고 정보로만 계산.
+                const angleInfo = checkGeometry(geo, found.central, found.subs);
+                return { ok: true, geo, angleInfo };
+            }
+        }
+
+        function updateAnalysis() {
+            const current = missions[currentMissionIdx];
+
+            // 화학식 표시
+            let bondedAtoms = atoms.filter(a => capacityUsed(a.id) > 0);
+            if (bondedAtoms.length === 0) { formulaDisplay.innerHTML = "-"; }
+            else {
+                let counts = { H:0, C:0, N:0, O:0, Cl:0, S:0, Na:0, Ca:0 };
+                bondedAtoms.forEach(a => { if (counts[a.type] !== undefined) counts[a.type]++; });
+                let formulaStr = "";
+                if (current.textFormula) {
+                    let isMatch2 = true;
+                    for (let k in current.req) if (counts[k] !== current.req[k]) isMatch2 = false;
+                    if (isMatch2) formulaStr = current.textFormula;
+                }
+                if (!formulaStr) {
+                    const order = current.displayOrder || ['Ca','Na','C','N','S','H','Cl','O'];
+                    order.forEach(el => { if (counts[el] > 0) { formulaStr += el; if (counts[el] > 1) formulaStr += `<sub>${counts[el]}</sub>`; } });
+                }
+                formulaDisplay.innerHTML = formulaStr || "-";
+            }
+
+            // 원소 개수 체크
+            let totalCounts = { H:0, C:0, N:0, O:0, Cl:0, S:0, Na:0, Ca:0 };
+            atoms.forEach(a => totalCounts[a.type]++);
+            let atomChips = [];
+            let atomsOk = true;
+            for (let key in current.req) {
+                if (current.req[key] === 0) continue;
+                const ok = totalCounts[key] === current.req[key];
+                if (!ok) atomsOk = false;
+                atomChips.push(`<span class="analysis-chip ${ok?'analysis-ok':'analysis-bad'}"><span class="icon">${ok?'✔️':'✖️'}</span>${key} ${totalCounts[key]}/${current.req[key]}</span>`);
+            }
+            // 원자 초과 여부(요구되지 않은 원소가 섞여 있으면 표시)
+            for (let key in totalCounts) {
+                if ((current.req[key]||0) === 0 && totalCounts[key] > 0) {
+                    atomsOk = false;
+                    atomChips.push(`<span class="analysis-chip analysis-bad"><span class="icon">✖️</span>${key} ${totalCounts[key]}/0 (불필요)</span>`);
+                }
+            }
+
+            const structResult = evaluateStructure(current);
+            let structChip = "";
+            let angleChip = "";
+            if (structResult.legacy) {
+                structChip = `<span class="analysis-chip ${structResult.ok?'analysis-ok':'analysis-bad'}"><span class="icon">${structResult.ok?'✔️':'✖️'}</span>결합 개수 ${structResult.ok?'충족':'부족'} (단순 판정)</span>`;
+            } else if (structResult.geo && structResult.geo.category === 'diatomic') {
+                structChip = `<span class="analysis-chip ${structResult.ok?'analysis-ok':'analysis-bad'}"><span class="icon">${structResult.ok?'✔️':'✖️'}</span>결합 차수 ${structResult.geo.order}중 결합 ${structResult.ok?'완성':'필요'}</span>`;
+            } else if (structResult.geo && structResult.geo.category === 'central') {
+                if (structResult.missingCentral) {
+                    structChip = `<span class="analysis-chip analysis-bad"><span class="icon">✖️</span>중심 원자·결합 차수 미완성</span>`;
+                } else {
+                    structChip = `<span class="analysis-chip analysis-ok"><span class="icon">✔️</span>결합 구조 완성</span>`;
+                    const ai = structResult.angleInfo;
+                    if (ai) {
+                        const chipStyle = 'background:#DBEAFE;color:#1D4ED8;';
+                        if (ai.isSpread) {
+                            angleChip = `<span class="analysis-chip" style="${chipStyle}"><span class="icon">ℹ️</span>참고: 결합 퍼짐 최소각 ${ai.current.toFixed(0)}° (VSEPR 목표 ${ai.target}° 이상으로 벌리면 실제 구조에 가까워요)</span>`;
+                        } else {
+                            angleChip = `<span class="analysis-chip" style="${chipStyle}"><span class="icon">ℹ️</span>참고: 현재 각도 ${ai.current.toFixed(1)}° (실제 VSEPR 각도는 약 ${ai.target}°)</span>`;
+                        }
+                    }
+                }
+            }
+
+            analysisPanel.innerHTML = `<span class="text-[10px] text-slate-400 font-bold uppercase tracking-wide mr-1">실시간 검증</span>` + atomChips.join('') + structChip + angleChip;
+
+            if (atomsOk && structResult.ok) triggerSuccess();
+        }
+
+        // ── 학생이 만든 구조를 캔버스에서 캡처 (성공 모달용) ──
+        function renderStudentSnapshot() {
+            const bondedIds = new Set();
+            bonds.forEach(b => { bondedIds.add(b.a); bondedIds.add(b.b); });
+            const bondedAtoms = atoms.filter(a => bondedIds.has(a.id));
+            if (bondedAtoms.length === 0) return null;
+
+            let minX = Math.min(...bondedAtoms.map(a => a.x - a.radius));
+            let maxX = Math.max(...bondedAtoms.map(a => a.x + a.radius));
+            let minY = Math.min(...bondedAtoms.map(a => a.y - a.radius));
+            let maxY = Math.max(...bondedAtoms.map(a => a.y + a.radius));
+            const w = Math.max(maxX - minX, 40), h = Math.max(maxY - minY, 40);
+
+            const snap = document.createElement('canvas');
+            snap.width = 220; snap.height = 220;
+            const sctx = snap.getContext('2d');
+            const pad = 30;
+            const scale = Math.min((220 - pad*2) / w, (220 - pad*2) / h, 1.6);
+
+            sctx.save();
+            sctx.translate(110, 110);
+            sctx.scale(scale, scale);
+            sctx.translate(-(minX + w/2), -(minY + h/2));
+
+            let drawn = new Set();
+            bonds.forEach(b => {
+                const a1 = getAtom(b.a), a2 = getAtom(b.b);
+                if (!a1 || !a2) return;
+                const dx = a2.x-a1.x, dy = a2.y-a1.y; const len = Math.hypot(dx,dy) || 1;
+                const nx = -dy/len, ny = dx/len;
+                const offsets = b.order===1 ? [0] : b.order===2 ? [-5,5] : [-7,0,7];
+                sctx.strokeStyle = '#94A3B8'; sctx.lineWidth = 6;
+                offsets.forEach(o => {
+                    sctx.beginPath();
+                    sctx.moveTo(a1.x+nx*o, a1.y+ny*o);
+                    sctx.lineTo(a2.x+nx*o, a2.y+ny*o);
+                    sctx.stroke();
+                });
+            });
+            bondedAtoms.forEach(a => {
+                sctx.beginPath(); sctx.arc(a.x, a.y, a.radius, 0, Math.PI*2);
+                sctx.fillStyle = a.color; sctx.fill();
+                sctx.lineWidth = 3; sctx.strokeStyle = a.borderColor; sctx.stroke();
+                sctx.fillStyle = a.textColor; sctx.font = `bold ${a.radius*0.55}px Poppins, sans-serif`;
+                sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+                sctx.fillText(a.type, a.x, a.y);
+            });
+            sctx.restore();
+            return snap.toDataURL();
+        }
+
+        function triggerSuccess() {
+            if (isMissionComplete) return;
+            isMissionComplete = true;
+            completedMissionIds.add(missions[currentMissionIdx].id);
+            saveCompletedToStorage();
+            renderMissionList();
+
+            const current = missions[currentMissionIdx];
+            const svgContent = GEOMETRY_SVGS[current.id] || `<span class="icon text-5xl text-slate-300">🧬</span>`;
+            const infoContent = GEOMETRY_DESCS[current.id] || { title: "입체 분자 구조", geometry: "Unknown", angle: "-", desc: "자연계에 존재하는 결합 기하학적 형태입니다." };
+
+            const studentSnap = renderStudentSnapshot();
+            document.getElementById('student-model-graphic').innerHTML = studentSnap ? `<img src="${studentSnap}" width="180" height="180" style="image-rendering:auto;">` : `<span class="text-xs text-slate-400">캡처 실패</span>`;
+            document.getElementById('real-model-graphic').innerHTML = svgContent;
+            document.getElementById('real-structure-title').innerText = infoContent.title;
+            document.getElementById('real-structure-desc').innerText = infoContent.desc;
+
+            let tagsHtml = `<span class="bg-[#003366] text-white px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase">${infoContent.geometry || 'Real 3D Geometry'}</span>`;
+            if (infoContent.angle && infoContent.angle !== "-") {
+                tagsHtml += `<span class="bg-[#11CAA0] text-white px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase ml-1">${infoContent.angle}</span>`;
+            }
+            document.getElementById('real-structure-tags').innerHTML = tagsHtml;
+
+            for (let i=0; i<120; i++) {
+                particles.push({
+                    x: canvas.width/2, y: canvas.height/2,
+                    vx: (Math.random()-0.5)*28, vy: (Math.random()-0.5)*28-10,
+                    color: `hsl(${Math.random()*360}, 100%, 60%)`,
+                    size: Math.random()*6+4, life: 1.0
+                });
+            }
+            modalBackdrop.classList.remove('hidden');
+            modalBackdrop.classList.add('flex');
+        }
+
+        function confirmMissionAndProceed() {
+            modalBackdrop.classList.remove('flex');
+            modalBackdrop.classList.add('hidden');
+            nextMission();
+        }
+
+        function updatePhysics() {
+            atoms.forEach(atom => {
+                atom.x += atom.vx; atom.y += atom.vy;
+                atom.vx *= 0.82; atom.vy *= 0.82;
+                if (atom.flashFrame > 0) atom.flashFrame--;
+                if (atom.x < atom.radius) { atom.x = atom.radius; atom.vx *= -1; }
+                if (atom.x > canvas.width - atom.radius) { atom.x = canvas.width - atom.radius; atom.vx *= -1; }
+                if (atom.y < atom.radius) { atom.y = atom.radius; atom.vy *= -1; }
+                if (atom.y > canvas.height - atom.radius) { atom.y = canvas.height - atom.radius; atom.vy *= -1; }
+            });
+            particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.75; p.life -= 0.02; });
+            particles = particles.filter(p => p.life > 0);
+        }
+
+        function drawBond(b) {
+            const a1 = getAtom(b.a), a2 = getAtom(b.b);
+            if (!a1 || !a2) return;
+            const dx = a2.x-a1.x, dy = a2.y-a1.y; const len = Math.hypot(dx,dy) || 1;
+            const nx = -dy/len, ny = dx/len;
+            const offsets = b.order===1 ? [0] : b.order===2 ? [-5,5] : [-7,0,7];
+            ctx.lineWidth = 7;
+            ctx.strokeStyle = '#CBD5E1';
+            offsets.forEach(o => {
+                ctx.beginPath();
+                ctx.moveTo(a1.x+nx*o, a1.y+ny*o);
+                ctx.lineTo(a2.x+nx*o, a2.y+ny*o);
+                ctx.stroke();
+            });
+            // 결합 차수 라벨 (클릭 유도)
+            const midX = (a1.x+a2.x)/2, midY = (a1.y+a2.y)/2;
+            ctx.fillStyle = '#475569';
+            ctx.font = 'bold 11px Poppins, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            const labels = { 1:'단일', 2:'이중', 3:'삼중' };
+            ctx.save();
+            ctx.fillStyle = 'rgba(255,255,255,0.85)';
+            ctx.fillRect(midX-20, midY-10, 40, 16);
+            ctx.fillStyle = '#334155';
+            ctx.fillText(labels[b.order], midX, midY-2);
+            ctx.restore();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            bonds.forEach(drawBond);
+
+            atoms.forEach(atom => {
+                ctx.save(); ctx.beginPath(); ctx.arc(atom.x, atom.y, atom.radius, 0, Math.PI*2);
+                if (atom.flashFrame > 0) ctx.fillStyle = `rgba(239, 68, 68, ${atom.flashFrame/15})`;
+                else ctx.fillStyle = atom.color;
+                ctx.fill();
+                ctx.lineWidth = 3.5; ctx.strokeStyle = atom.borderColor; ctx.stroke();
+
+                const gradient = ctx.createRadialGradient(atom.x-atom.radius*0.3, atom.y-atom.radius*0.3, atom.radius*0.1, atom.x, atom.y, atom.radius);
+                gradient.addColorStop(0, 'rgba(255,255,255,0.45)');
+                gradient.addColorStop(0.6, 'rgba(255,255,255,0)');
+                gradient.addColorStop(1, 'rgba(0,0,0,0.25)');
+                ctx.fillStyle = gradient; ctx.fill();
+
+                ctx.fillStyle = atom.textColor; ctx.font = `bold ${atom.radius*0.55}px 'Poppins', sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(atom.type, atom.x, atom.y);
+                ctx.restore();
+            });
+
+            particles.forEach(p => { ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); });
+            ctx.globalAlpha = 1.0;
+        }
+
+        function loop() { updatePhysics(); draw(); requestAnimationFrame(loop); }
+
+        setTimeout(() => {
+            resizeCanvas();
+            loadCompletedFromStorage();
+            selectMission(0);
+            loop();
+        }, 100);
+    </script>
+</body>
+</html>
