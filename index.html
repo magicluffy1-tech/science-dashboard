@@ -24,6 +24,43 @@
       .desktop-main-title { font-size: 26px !important; }
       .desktop-main-desc { font-size: 14.5px !important; }
     }
+
+    /* 📱 태블릿 (768px ~ 1023px) */
+    @media (max-width: 1023px) and (min-width: 768px) {
+      .sidebar { width: 220px !important; }
+      .main-content { padding: 24px !important; }
+      .subject-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 16px !important; }
+      .grade-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 16px !important; }
+      .sim-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important; }
+    }
+
+    /* 📱 모바일 (767px 이하): 좌우 배치 → 상하 배치 */
+    @media (max-width: 767px) {
+      .layout-wrap { flex-direction: column !important; }
+      .sidebar {
+        width: 100% !important;
+        border-right: none !important;
+        border-bottom: 1px solid #1E293B !important;
+        max-height: 280px !important;
+        overflow-y: auto !important;
+        padding: 16px 0 !important;
+      }
+      .main-content { padding: 16px !important; }
+      .app-header {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+        padding: 14px 16px !important;
+      }
+      .header-search-wrap { width: 100% !important; }
+      .header-search { width: 100% !important; }
+      .subject-grid { grid-template-columns: 1fr !important; gap: 14px !important; max-width: 100% !important; }
+      .grade-grid { grid-template-columns: 1fr !important; gap: 14px !important; }
+      .sim-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+      .desktop-main-title { font-size: 21px !important; }
+      .desktop-main-desc { font-size: 13px !important; }
+      .context-bar { flex-wrap: wrap !important; }
+    }
   </style>
 </head>
 <body>
@@ -95,7 +132,7 @@ const SIMULATIONS = [
   { id: 36,  grade: 2, subject: "물리", unit: "빛과 파동", title: "파동의 특성 - 진폭·파장·진동수", icon: "〰️", desc: "슬라이더로 파동의 물리량을 바꾸며 파형이 어떻게 달라지는지 실시간으로 확인합니다.", url: "https://aistudio.google.com/apps/300bb084-3ae7-4b52-a589-a9ac03f61a13?fullscreenApplet=true" },
   { id: 37,  grade: 2, subject: "물리", unit: "빛과 파동", title: "파동의 중첩과 간섭", icon: "🎯", desc: "두 파동의 위상 차이에 따라 보강 간섭·상쇄 간섭이 나타나는 과정을 시각화합니다.", url: "" },
   { id: 37.5,  grade: 2, subject: "물리", unit: "빛과 파동", title: "색 그림자", icon: "🔦", desc: "빛의 합성을 이용한 색 그림자 효과를 확인합니다.", url: "./color_shadow_simulator.html" },
-  { id: 37.6, grade: 2, subject: "물리", unit: "빛과 파동", title: "Animal Vision - 동물의 눈으로 보는 세상", icon: "🦅", desc: "카메라로 사진을 찍으면 벌, 뱀, 나비, 개 등 동물마다 다르게 인식하는 빛의 파장에 따라 세상이 어떻게 보이는지 체험합니다.", url: "./animal_vision/index.html" },
+  { id: 37.6,  grade: 2, subject: "물리", unit: "빛과 파동", title: "Animal Vision - 동물의 눈으로 보는 세상", icon: "🦅", desc: "카메라로 사진을 찍으면 벌, 뱀, 나비, 개 등 동물마다 다르게 인식하는 빛의 파장에 따라 세상이 어떻게 보이는지 체험합니다.", url: "./animal_vision/index.html" },
 
   // ─── 2학년 ─── 물질의 구성
   { id: 38,  grade: 2, subject: "화학", unit: "물질의 구성", title: "원자 모형 변천사 타임라인", icon: "⚛️", desc: "돌턴→톰슨→러더퍼드→보어 모형을 순서대로 탐색하며 각 모형의 증거와 한계를 비교합니다.", url: "" },
@@ -257,7 +294,7 @@ function ScienceDashboard() {
     <div style={{ fontFamily:"'Pretendard','Noto Sans KR',system-ui,sans-serif", background:"#060B14", minHeight:"100vh", color:"#E2E8F0" }}>
 
       {/* ── Header ── */}
-      <header style={{ borderBottom:"1px solid #1E293B", padding:"18px 28px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:50, backdropFilter:"blur(12px)", background:"rgba(6,11,20,0.92)" }}>
+      <header className="app-header" style={{ borderBottom:"1px solid #1E293B", padding:"18px 28px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:50, backdropFilter:"blur(12px)", background:"rgba(6,11,20,0.92)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
           <div style={{ width:44, height:44, borderRadius:12, background:"linear-gradient(135deg,#3B82F6,#8B5CF6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24 }}>🔬</div>
           <div>
@@ -265,11 +302,11 @@ function ScienceDashboard() {
             <div className="desktop-hdr-desc" style={{ fontSize:11, color:"#64748B", marginTop:2 }}>중학교 1–3학년 · {SIMULATIONS.length}개 시뮬레이션</div>
           </div>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ position:"relative" }}>
+        <div className="header-search-wrap" style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ position:"relative", width:"100%" }}>
             <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", fontSize:14, color:"#64748B" }}>🔍</span>
             <input
-              className="desktop-search"
+              className="desktop-search header-search"
               placeholder="제목·단원·과목 검색..."
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -279,10 +316,10 @@ function ScienceDashboard() {
         </div>
       </header>
 
-      <div style={{ display:"flex", minHeight:"calc(100vh - 81px)" }}>
+      <div className="layout-wrap" style={{ display:"flex", minHeight:"calc(100vh - 81px)" }}>
 
         {/* ── Sidebar ── */}
-        <aside style={{ width:260, borderRight:"1px solid #1E293B", padding:"24px 0", flexShrink:0, background:"#070C16", overflowY:"auto" }}>
+        <aside className="sidebar" style={{ width:260, borderRight:"1px solid #1E293B", padding:"24px 0", flexShrink:0, background:"#070C16", overflowY:"auto" }}>
 
           {/* 보기 모드 토글 */}
           <div style={{ padding:"0 18px 20px", borderBottom:"1px solid #1E293B" }}>
@@ -383,7 +420,7 @@ function ScienceDashboard() {
         </aside>
 
         {/* ── Main Content Area ── */}
-        <main style={{ flex:1, padding:"32px 36px", overflow:"auto" }}>
+        <main className="main-content" style={{ flex:1, padding:"32px 36px", overflow:"auto" }}>
 
           {/* ── [개편] 과목별 대시보드 홈 (2x2 정사각형 그리드) ── */}
           {viewMode === "subject" && !selectedSubject && !search && (
@@ -393,7 +430,7 @@ function ScienceDashboard() {
                 <div className="desktop-main-desc" style={{ fontSize: 14.5, color: "#64748B" }}>원하는 과목 카드를 선택하여 가상 실험실에 입장하세요.</div>
               </div>
               
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "24px", maxWidth: "1200px", marginBottom: "32px" }}>
+              <div className="subject-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "24px", maxWidth: "1200px", marginBottom: "32px" }}>
                 {SUBJECTS.map(subj => {
                   const m = SUBJECT_META[subj];
                   const cnt = SIMULATIONS.filter(s => s.subject === subj).length;
@@ -451,7 +488,7 @@ function ScienceDashboard() {
                 <div className="desktop-main-desc" style={{ fontSize: 14.5, color: "#64748B" }}>학년별 교육과정 단원을 확인하고 원하는 시뮬레이션을 탐색하세요.</div>
               </div>
               
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px", maxWidth: "1400px", alignItems: "start" }}>
+              <div className="grade-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px", maxWidth: "1400px", alignItems: "start" }}>
                 {GRADES.map(g => {
                   const sims = SIMULATIONS.filter(s => s.grade === g);
                   const units = GRADE_UNITS[g];
@@ -525,7 +562,7 @@ function ScienceDashboard() {
           {showCards && (
             <div style={{ marginBottom:24 }}>
               {viewMode==="subject" && meta && (
-                <div style={{ display:"flex", alignItems:"center", gap:18, padding:"16px 22px", borderRadius:14, background:`${meta.bg}`, border:`1px solid ${meta.color}55`, marginBottom:20 }}>
+                <div className="context-bar" style={{ display:"flex", alignItems:"center", gap:18, padding:"16px 22px", borderRadius:14, background:`${meta.bg}`, border:`1px solid ${meta.color}55`, marginBottom:20 }}>
                   <div style={{ fontSize:36 }}>{meta.emoji}</div>
                   <div style={{ flex:1 }}>
                     <div style={{ fontWeight:800, fontSize:22, color:meta.light }}>{selectedSubject} 과목</div>
@@ -535,7 +572,7 @@ function ScienceDashboard() {
                 </div>
               )}
               {viewMode==="grade" && selectedGrade && (
-                <div style={{ display:"flex", alignItems:"center", gap:18, padding:"16px 22px", borderRadius:14, background:"#0C1929", border:"1px solid #38BDF844", marginBottom:20 }}>
+                <div className="context-bar" style={{ display:"flex", alignItems:"center", gap:18, padding:"16px 22px", borderRadius:14, background:"#0C1929", border:"1px solid #38BDF844", marginBottom:20 }}>
                   <div style={{ fontSize:36 }}>🎓</div>
                   <div style={{ flex:1 }}>
                     <div style={{ fontWeight:800, fontSize:22, color:"#38BDF8" }}>
@@ -547,7 +584,7 @@ function ScienceDashboard() {
                 </div>
               )}
               {search && (
-                <div style={{ padding:"14px 22px", borderRadius:14, background:"#0F172A", border:"1px solid #334155", marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div className="context-bar" style={{ padding:"14px 22px", borderRadius:14, background:"#0F172A", border:"1px solid #334155", marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                   <span style={{ fontSize:14.5, color:"#94A3B8" }}>🔍 <strong style={{ color:"#FFF", fontSize:16 }}>"{search}"</strong> 검색 결과 가상실험 <strong style={{color:"#3B82F6"}}>{filtered.length}개</strong>를 찾았습니다.</span>
                   <button onClick={() => setSearch("")} style={{ background:"transparent", border:"none", color:"#64748B", cursor:"pointer", fontSize:24, lineHeight:1 }}>×</button>
                 </div>
@@ -579,14 +616,14 @@ function ScienceDashboard() {
                           <span style={{ fontSize:12, color:um.light, background:`${um.color}22`, border:`1px solid ${um.color}33`, borderRadius:6, padding:"2px 8px", fontWeight:700 }}>{unitSims.length}</span>
                           <span style={{ fontSize:12, color:um.color, marginLeft:"auto", fontWeight:600 }}>이 단원만 모아보기 →</span>
                         </div>
-                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16 }}>
+                        <div className="sim-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16 }}>
                           {unitSims.map(sim => <SimCard key={sim.id} sim={sim}/>)}
                         </div>
                       </div>
                     );
                   })
                 ) : (
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16 }}>
+                  <div className="sim-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16 }}>
                     {filtered.map(sim => <SimCard key={sim.id} sim={sim}/>)}
                   </div>
                 )
