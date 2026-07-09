@@ -180,6 +180,44 @@
   }
   .ph:hover{ transform:none; box-shadow:none;}
 
+  .atom-stage{
+    grid-row: 1 / span 2;
+    grid-column: 3 / span 10;
+    border-radius:14px;
+    background: radial-gradient(circle at 50% 40%, #26312c 0%, #1b241f 55%, #141b17 100%);
+    box-shadow: inset 0 0 30px rgba(0,0,0,.35);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:18px;
+    padding: 10px 22px;
+    cursor:default;
+    overflow:hidden;
+  }
+  .atom-stage .as-empty{
+    color:rgba(255,255,255,.55);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    text-align:center;
+    line-height:1.7;
+  }
+  .atom-stage .as-svg{ flex:none; }
+  .atom-stage .as-info{ color:#fff; min-width:150px; }
+  .atom-stage .as-sym{
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:34px; line-height:1;
+  }
+  .atom-stage .as-name{ font-size:14px; color:rgba(255,255,255,.75); margin-top:4px; }
+  .atom-stage .as-formula{
+    font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:rgba(255,255,255,.85);
+    margin-top:10px;
+  }
+  .atom-stage .as-caveat{
+    font-size:10.5px; color:rgba(255,255,255,.5); line-height:1.6; margin-top:8px; max-width:230px;
+  }
+  @media (max-width: 980px){
+    .atom-stage{ grid-column: 1 / span 18; grid-row: auto; flex-wrap:wrap; padding:16px; }
+  }
+
   .legend{
     display:flex; flex-wrap:wrap; gap:7px; margin-top:16px;
   }
@@ -272,15 +310,20 @@
   }
 
   .bohr-box{
-    background:var(--bg);
-    border-radius:10px;
-    padding:10px;
+    background: radial-gradient(circle at 50% 42%, #26312c 0%, #1b241f 55%, #141b17 100%);
+    border-radius:14px;
+    padding:14px;
     display:flex;
     justify-content:center;
-    margin: 6px 0 14px;
+    margin: 6px 0 4px;
+    box-shadow: inset 0 0 30px rgba(0,0,0,.35);
   }
   .bohr-note{
     font-size:12px; color:var(--ink-soft); line-height:1.6; text-align:center; padding: 8px 4px;
+  }
+  .bohr-caveat{
+    font-size:11px; color:var(--ink-soft); line-height:1.6; text-align:center;
+    padding: 6px 6px 2px; opacity:.85;
   }
 
   .rule-box{
@@ -996,6 +1039,22 @@ function bohrShells(z){
   return shells;
 }
 
+const SHELL_LETTERS = ['K','L','M','N','O','P','Q'];
+// 21번 이후 원소도 중앙에 시각화를 보여주기 위한 "단순화된" 전자껍질 모형.
+// 2n² 최대 수용 규칙(K,L,M,N,O,P,Q = 2,8,18,32,32,18,8)으로 순서대로 채운 것으로,
+// 전이금속/란타넘족/악티늄족의 실제 전자 배치(예외적인 채움 순서)와는 다를 수 있어요.
+function fullShells(z){
+  const caps=[2,8,18,32,32,18,8];
+  let rem=z, shells=[];
+  for(const cap of caps){
+    if(rem<=0) break;
+    const e=Math.min(cap, rem);
+    shells.push(e);
+    rem-=e;
+  }
+  return shells;
+}
+
 const GROUP_DESC = {
   1:'1족(알칼리 금속류): 최외각 전자 1개 — 반응성이 크고 물과 격렬히 반응해요.',
   2:'2족(알칼리 토금속): 최외각 전자 2개 — 1족보다는 반응성이 낮아요.',
@@ -1088,6 +1147,32 @@ function addPlaceholder(row, col, label){
 addPlaceholder(6,3,'57–71 ↓');
 addPlaceholder(7,3,'89–103 ↓');
 
+// 가운데 빈 공간(1~2주기, 3~12족)에 놓일 원자 모형 무대
+const atomStage = document.createElement('div');
+atomStage.className = 'atom-stage';
+atomStage.id = 'atomStage';
+atomStage.innerHTML = `<div class="as-empty">⚛️<br>원소를 클릭하면<br>여기에 원자 모형이 나타나요</div>`;
+table.appendChild(atomStage);
+
+function renderAtomStage(z){
+  const el = RAW.find(e=>e.z===z);
+  const cat = catOf(z);
+  const isSimple = z<=20;
+  const shells = isSimple ? bohrShells(z) : fullShells(z);
+  const neutrons = Math.max(0, Math.round(el.mass) - z);
+  const labels = shells.map((_,i)=>SHELL_LETTERS[i]).join(',');
+  const caveat = isSimple ? '' : `<div class="as-caveat">⚠️ 21번 이후 원소는 2n² 규칙으로 단순화한 모형이에요. 실제 전자 배치(전이금속 등의 예외)는 고등학교 과정에서 배워요.</div>`;
+  atomStage.innerHTML = `
+    <div class="as-svg">${drawBohr(shells, cat, z, neutrons, 230)}</div>
+    <div class="as-info">
+      <div class="as-sym">${el.sym}</div>
+      <div class="as-name">${el.kr} · ${el.en}</div>
+      <div class="as-formula">전자 배치: ${labels} = ${shells.join(', ')}</div>
+      ${caveat}
+    </div>
+  `;
+}
+
 // 빈 공간 채우기용 스페이서 행 (5,8행 사이 여백)
 const spacer = document.createElement('div');
 spacer.style.gridRow = 8;
@@ -1123,6 +1208,7 @@ function selectElement(z){
   cellMap[z].classList.add('selected');
   selectHighlight(z);
   renderPanel(z);
+  renderAtomStage(z);
   markViewed(z);
 }
 
@@ -1132,17 +1218,6 @@ function renderPanel(z){
   const pos = getPosition(z);
   const groupLabel = (pos.group==='lan') ? '란타넘족' : (pos.group==='act') ? '악티늄족' : pos.group+'족';
   const panel = document.getElementById('panel');
-
-  let bohrHTML = '';
-  if(z<=20){
-    const shells = bohrShells(z);
-    bohrHTML = `
-      <div class="bohr-box">${drawBohr(shells, cat)}</div>
-      <div class="shell-formula">전자 배치: K,L,M,N = ${shells.join(', ')}</div>
-    `;
-  } else {
-    bohrHTML = `<div class="bohr-note">이 원소의 정밀한 전자 배치는 고등학교 과정에서 배우는 오비탈 개념이 필요해요.<br>(중학교 단순 모형은 1~20번 원소에 적용됩니다)</div>`;
-  }
 
   let ruleHTML = '';
   if(typeof pos.group === 'number' && GROUP_DESC[pos.group]){
@@ -1182,7 +1257,6 @@ function renderPanel(z){
     ${extraHTML}
     ${useHTML}
     <div class="hi-note">👈 표에서 진하게 강조된 가로줄이 <b>주기</b>, 세로줄이 <b>족</b>이에요.</div>
-    ${bohrHTML}
     ${ruleHTML}
   `;
 }
@@ -1192,24 +1266,68 @@ function formatYear(year){
   return year < 0 ? `기원전 ${Math.abs(year)}년경` : `${year}년`;
 }
 
-function drawBohr(shells, cat){
-  const size = 220, cx = size/2, cy = size/2;
-  const ringGap = 26, baseR = 26;
+function drawBohr(shells, cat, z, neutrons, size){
+  size = size || 260;
+  const cx = size/2, cy = size/2;
+  const ringGap = size*0.104, baseR = size*0.115;
+  const eColor = CAT_HEX[cat] || '#2c6e63';
+  const uid = 'g'+Math.round(cx)+'_'+(z||0);
+
   let svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
-  svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="var(--ink)"/>`;
+  svg += `
+    <defs>
+      <filter id="glow-${uid}" x="-150%" y="-150%" width="400%" height="400%">
+        <feGaussianBlur stdDeviation="2.6" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>`;
+
+  // 궤도(전자껍질) 안내선
+  shells.forEach((count,i)=>{
+    const r = baseR + i*ringGap;
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1.2"/>`;
+  });
+
+  // 원자핵: 양성자(빨강)+중성자(회녹색) 뭉치
+  if(typeof z === 'number' && z>0){
+    const parts = [];
+    for(let i=0;i<z;i++) parts.push('p');
+    for(let i=0;i<(neutrons||0);i++) parts.push('n');
+    const n = parts.length;
+    const rr = n<=1 ? 0 : Math.min(15, 3.2+n*0.55);
+    svg += `<g filter="url(#glow-${uid})">`;
+    parts.forEach((type,i)=>{
+      const a = n<=1 ? 0 : (2*Math.PI/n)*i;
+      const px = cx + rr*Math.cos(a) + Math.sin(i*13)*2;
+      const py = cy + rr*Math.sin(a) + Math.cos(i*17)*2;
+      svg += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="6" fill="${type==='p' ? '#e0645f' : '#7fae86'}" stroke="#141b17" stroke-width="0.8"/>`;
+    });
+    svg += `</g>`;
+  } else {
+    svg += `<circle cx="${cx}" cy="${cy}" r="10" fill="#e0645f" filter="url(#glow-${uid})"/>`;
+  }
+
+  // 전자껍질: 도는 전자 + 잔상(모션 블러 느낌)
   shells.forEach((count, i)=>{
     const r = baseR + i*ringGap;
-    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line)" stroke-width="1.5"/>`;
-    const dur = 6 + i*3;
+    const dur = 7 + i*3.4;
     svg += `<g class="orbit-group" style="transform-origin:${cx}px ${cy}px; animation: spin ${dur}s linear infinite;">`;
     for(let k=0;k<count;k++){
       const angle = (2*Math.PI/count)*k;
+      // 잔상 점 (연한 트레일)
+      for(let t=1;t<=3;t++){
+        const trailAngle = angle - t*0.16;
+        const tx = cx + r*Math.cos(trailAngle);
+        const ty = cy + r*Math.sin(trailAngle);
+        svg += `<circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="3.2" fill="${eColor}" opacity="${(0.22 - t*0.06).toFixed(2)}"/>`;
+      }
       const ex = cx + r*Math.cos(angle);
       const ey = cy + r*Math.sin(angle);
-      svg += `<circle cx="${ex}" cy="${ey}" r="4.2" fill="var(--c-${catClassSuffix(cat)})" />`;
+      svg += `<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="4.6" fill="${eColor}" filter="url(#glow-${uid})"/>`;
     }
     svg += `</g>`;
   });
+
   svg += `</svg>`;
   return svg;
 }
