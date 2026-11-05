@@ -437,7 +437,7 @@ const S={
   t:Date.now(), rate:1, playing:true,
   az:180, alt:35, fov:100,
   tgt:null,
-  show:{lines:true,names:true,stars:true,bodies:true,dso:true,milky:true,meridian:false,agrid:false,egrid:false,atmo:true,ground:true,map:true,poi:true,ast:true,trails:false},
+  show:{lines:true,names:true,stars:true,bodies:true,dso:true,milky:true,meridian:false,agrid:false,egrid:false,atmo:true,ground:true,map:true,street:false,poi:true,ast:true,trails:false},
   lp:3, starScale:1,
   sel:null, hl:{cons:[],stars:[],ast:[],guides:[],dso:[],labels:true,pulse:true}, measure:{on:false,pts:[]},
   trailHours:3, forceLim:null,
@@ -1273,7 +1273,7 @@ const TB=[
  'sep',
  ['meridian','📍','남쪽\n자오선'],['agrid','🧭','고도·방위\n격자'],['egrid','🌐','적도·황도\n격자'],['ast','','']/*hidden*/,
  'sep',
- ['atmo','☁','대기'],['ground','⛰','지평선'],['map','🛰','위성\n지도'],['poi','📌','장소\n이름'],['trails','🌀','별 궤적'],
+ ['atmo','☁','대기'],['ground','⛰','지평선'],['map','🛰','위성\n지도'],['street','🗺','길 지도\n(글자)'],['poi','📌','장소\n이름'],['trails','🌀','별 궤적'],
  'sep',
  ['ar','📱','폰으로\n보기'],['tonight','🌟','오늘 밤\n추천'],['now','🌌','지금\n우주'],['zodiac','♈','황도\n12궁'],['measure','📏','각도 재기'],['search','🔍','검색'],['v3d','🔭','3D 거리'],['show','🎙','해설'],['settings','⚙','설정'],['full','⛶','전체화면']
 ];
@@ -2954,7 +2954,11 @@ const GIBS_LAYERS=[
   (z,x,y)=>'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlackMarble_2016/default/2016-01-01/GoogleMapsCompatible_Level8/'+z+'/'+y+'/'+x+'.png',
   (z,x,y)=>'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlackMarble_2016/default/default/GoogleMapsCompatible_Level8/'+z+'/'+y+'/'+x+'.png',
 ];
-const LEVELS=[{key:'z12',z:12},{key:'z14',z:14},{key:'z16',z:16}]; // 먼 곳 → 가까운 곳 순서로 불러옴
+const CARTO=(z,x,y)=>'https://basemaps.cartocdn.com/rastertiles/voyager_nolabels/'+z+'/'+x+'/'+y+'.png';
+const CARTO_L=(z,x,y)=>'https://basemaps.cartocdn.com/rastertiles/voyager/'+z+'/'+x+'/'+y+'.png';
+const LV_SAT=[{key:'z12',z:12},{key:'z14',z:14},{key:'z16',z:16}],LV_ST=[{key:'z12',z:13},{key:'z14',z:15},{key:'z16',z:17}];
+const isSt=()=>!!S.show.street;
+const curKey=()=>keyOf()+(isSt()?'s':'a'); // 먼 곳 → 가까운 곳 순서로 불러옴
 const N_T=3; // 레벨마다 3×3 타일
 
 const MP={lv:{},lights:null,key:'',failed:false,loading:false,ver:0,msgShown:false,errMsg:false,cfg:null};
@@ -2987,18 +2991,19 @@ async function buildMosaic(urlFn,z,lat,lon){
 }
 function keyOf(){return S.lat.toFixed(3)+','+S.lon.toFixed(3)}
 async function startLoad(){
-  if(MP.loading)return; const key=keyOf(); if(MP.key===key&&(MP.lv.z12||MP.failed))return;
+  if(MP.loading)return; const key=curKey(); if(MP.key===key&&(MP.lv.z12||MP.failed))return;
   MP.loading=true; MP.key=key; MP.failed=false; MP.lv={}; MP.lights=null; MP.ver++; MP.errMsg=false; const lat=S.lat,lon=S.lon;
-  PL.toast('🛰 위성지도를 불러오는 중이에요…',2200);
+  PL.toast(isSt()?'🗺 길 지도를 불러오는 중이에요…':'🛰 위성지도를 불러오는 중이에요…',2200);
   try{
-    for(const L of LEVELS){
-      if(keyOf()!==key)break; // 도중에 장소가 바뀌면 중단
-      const m=await buildMosaic(ESRI,L.z,lat,lon);
+    const st=isSt();
+    for(const L of (st?LV_ST:LV_SAT)){
+      if(curKey()!==key)break; // 도중에 장소가 바뀌면 중단
+      const m=await buildMosaic(st?CARTO_L:ESRI,L.z,lat,lon);
       if(!m){ if(L.key==='z12'){MP.failed=true;break} continue }
       MP.lv[L.key]=m; MP.ver++; PL.dirty();
       if(L.key==='z12'&&!MP.msgShown){MP.msgShown=true;PL.toast((S.place&&(S.place.id==='here'||S.place.id==='custom-xy'))?'🛰 위성지도 지면을 켰어요. 폰을 아래로 향하거나 화면을 아래로 끌어 보세요.':'🛰 지도는 서산시 중심 기준이에요. 정확한 우리 동네는 ⚙설정 → [내 위치]를 눌러 맞춰 주세요.',6500)}
     }
-    if(!MP.failed&&keyOf()===key){
+    if(!MP.failed&&!st&&curKey()===key){
       for(const f of GIBS_LAYERS){
         let m=null; try{m=await buildMosaic(f,8,lat,lon)}catch(e){m=null}
         if(m){MP.lights=m;MP.ver++;PL.dirty();break}
@@ -3026,17 +3031,17 @@ function sampleLight(m,east,north){
 // ---------------------------------------------------------------- 지면 버퍼
 const bufC=document.createElement('canvas'),bufG=bufC.getContext('2d'); let bufImg=null,bufKey='';
 function drawBuf(){
-  const sc=FR.W>900?4:3, w=Math.max(30,Math.ceil(FR.W/sc)), h=Math.max(30,Math.ceil(FR.H/sc));
-  const key=[FR.fE.toFixed(4),FR.fN.toFixed(4),FR.fU.toFixed(4),FR.rE.toFixed(4),FR.rN.toFixed(4),FR.F.toFixed(1),FR.cx|0,FR.cy|0,w,h,Math.round(FR.sunAlt*20),MP.ver,Math.round((FR.moon.alt||0)),Math.round((FR.moon.frac||0)*20),S.lp].join('|');
+  const st=isSt(), sc=st?(FR.W>900?3:2):(FR.W>900?4:3), w=Math.max(30,Math.ceil(FR.W/sc)), h=Math.max(30,Math.ceil(FR.H/sc));
+  const key=[FR.fE.toFixed(4),FR.fN.toFixed(4),FR.fU.toFixed(4),FR.rE.toFixed(4),FR.rN.toFixed(4),FR.F.toFixed(1),FR.cx|0,FR.cy|0,w,h,Math.round(FR.sunAlt*20),MP.ver,st,Math.round((FR.moon.alt||0)),Math.round((FR.moon.frac||0)*20),S.lp].join('|');
   if(key===bufKey&&bufImg)return {w,h};
   bufKey=key;
   if(bufC.width!==w||bufC.height!==h){bufC.width=w;bufC.height=h;bufImg=bufG.createImageData(w,h)}
   const d=bufImg.data; d.fill(0);
   const dayW=FR.dayW,nf=FR.nf,tw=FR.twi;
   const moon=FR.moon,ml=(moon.alt>0?(moon.frac||0)*clamp(moon.alt/18,0,1):0);
-  const night=0.07+0.11*ml, illum=lerp(night,1,Math.pow(dayW,0.8));
+  const night=(st?0.55:0.07)+0.11*ml, illum=lerp(night,1,Math.pow(dayW,0.8));
   const tintR=lerp(1,0.55,nf)*(1+0.32*tw),tintG=lerp(1,0.72,nf),tintB=lerp(1,1.0,nf)*(1-0.18*tw);
-  const lightK=nf*(1-dayW)*(1.0+(S.lp-1)*0.04);
+  const lightK=st?0:nf*(1-dayW)*(1.0+(S.lp-1)*0.04);
   const sv=FR.sunVec,F=FR.F,fE=FR.fE,fN=FR.fN,fU=FR.fU,rE=FR.rE,rN=FR.rN,rU=FR.rU,uE=FR.uE,uN=FR.uN,uU=FR.uU;
   const lvs=[MP.lv.z16,MP.lv.z14,MP.lv.z12].filter(Boolean), li=MP.lights;
   const px=[0,0,0],hz=[0,0,0];
@@ -3087,7 +3092,7 @@ window.__mapFill=function(rule){
 // ---------------------------------------------------------------- 📌 장소·건물 이름 (OpenStreetMap)
 const POI={list:[],key:'',loading:false,fail:false};
 try{ if(localStorage.getItem('maruvi_poi')==='0')S.show.poi=false }catch(e){}
-const OVP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const OVP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
 function poiClass(t){
   if(t.place&&/^(city|town|village|suburb|neighbourhood|hamlet|quarter|isolated_dwelling)$/.test(t.place))return {c:'place',pr:0,ico:'📍'};
   const am=t.amenity||'';
@@ -3102,21 +3107,21 @@ function poiClass(t){
   return {c:'etc',pr:4,ico:'•'};
 }
 function poiQuery(lat,lon){
-  const R=3000,r2=6000, a='(around:'+R+','+lat+','+lon+')', b='(around:'+r2+','+lat+','+lon+')';
-  return '[out:json][timeout:25];('+
+  const R=2000,r2=5000, a='(around:'+R+','+lat+','+lon+')', b='(around:'+r2+','+lat+','+lon+')';
+  return '[out:json][timeout:12];('+
    'nwr["name"]["place"]'+b+';'+
    'nwr["name"]["amenity"~"school|kindergarten|university|college|townhall|police|fire_station|hospital|library|community_centre|post_office|courthouse"]'+a+';'+
    'nwr["name"]["building"~"apartments|residential|public|civic|church|hospital|school|industrial|commercial|retail"]'+a+';'+
    'nwr["name"]["leisure"~"park|stadium|sports_centre|pitch"]'+a+';'+
    'nwr["name"]["tourism"]'+a+';nwr["name"]["historic"]'+a+';nwr["name"]["landuse"~"residential|industrial"]'+a+';'+
    'nwr["name"]["railway"="station"]'+a+';'+
-   ');out center tags 400;';
+   ');out center tags 250;';
 }
 function cacheKey(lat,lon){return 'maruvi_poi_'+lat.toFixed(2)+'_'+lon.toFixed(2)}
 async function fetchOverpass(q){
   for(const u of OVP){
     try{
-      const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),22000);
+      const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),12000);
       const r=await fetch(u+'?data='+encodeURIComponent(q),{signal:ctl.signal}); clearTimeout(to);
       if(!r.ok)continue; return await r.json();
     }catch(e){}
@@ -3129,7 +3134,7 @@ function parsePoi(js,lat,lon){
     const t=e.tags||{}, nm=(t['name:ko']||t.name||'').trim(); if(!nm)continue;
     const la=e.lat!=null?e.lat:(e.center&&e.center.lat), lo=e.lon!=null?e.lon:(e.center&&e.center.lon); if(la==null||lo==null)continue;
     const cl=poiClass(t); const east=(lo-lon)*kx, north=(la-lat)*ky, dist=Math.hypot(east,north);
-    if(dist<25)continue; if(cl.c!=='place'&&dist>3200)continue;
+    if(dist<25)continue; if(cl.c!=='place'&&dist>2200)continue;
     const id=nm+'|'+Math.round(east/60)+'|'+Math.round(north/60); if(seen[id])continue; seen[id]=1;
     out.push({nm,east,north,dist,cl});
   }
@@ -3145,13 +3150,13 @@ async function loadPoi(){
   const js=await fetchOverpass(poiQuery(lat,lon));
   POI.loading=false;
   if(keyOf()!==key)return;
-  if(!js){POI.fail=true;PL.toast('📌 장소 이름을 불러오지 못했어요. 지도만 보여 드려요.',3500);return}
+  if(!js){POI.fail=true;setTimeout(()=>{POI.key=''},90000);PL.toast('📌 장소 이름 서버가 응답하지 않아요. 🗺 길 지도(글자)를 켜면 이름이 지도에 들어 있어요.',5000);return}
   POI.list=parsePoi(js,lat,lon);
   try{localStorage.setItem(ck,JSON.stringify({t:Date.now(),js:{elements:(js.elements||[]).slice(0,400)}}))}catch(e){}
   PL.toast('📌 주변 장소 '+POI.list.length+'곳의 이름을 표시해요',3000); PL.dirty();
 }
 function drawPoi(){
-  if(!(S.show.poi&&mapOn()&&POI.list.length))return;
+  if(!(S.show.poi&&!isSt()&&mapOn()&&POI.list.length))return;
   const g=G.ctx,fE=FR.fE,fN=FR.fN,fU=FR.fU,rE=FR.rE,rN=FR.rN,rU=FR.rU,uE=FR.uE,uN=FR.uN,uU=FR.uU,F=FR.F;
   const boxes=[]; let n=0;
   g.save(); g.textAlign='left'; g.textBaseline='middle'; g.lineJoin='round';
@@ -3184,7 +3189,7 @@ function updAttr(){
     st.textContent='#mapAttr{position:absolute;right:10px;bottom:120px;z-index:3;max-width:min(420px,calc(100vw - 20px));font-size:9.5px;line-height:1.3;color:rgba(235,242,255,.78);text-align:right;text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:none;display:none}#app.arOn #mapAttr{bottom:136px}@media (max-width:520px){#mapAttr{right:8px;bottom:120px}}';
     document.head.appendChild(st)}
   attr.style.display=mapOn()?'block':'none';
-  attr.textContent='위성지도 © Esri, Maxar, Earthstar Geographics, GIS User Community'+(MP.lights?' · 야간 불빛 NASA GIBS(VIIRS)':'')+(S.show.poi&&POI.list.length?' · 장소 © OpenStreetMap contributors':'');
+  attr.textContent=isSt()?'지도 © OpenStreetMap contributors © CARTO':'위성지도 © Esri, Maxar, Earthstar Geographics, GIS User Community'+(MP.lights?' · 야간 불빛 NASA GIBS(VIIRS)':'')+(S.show.poi&&!isSt()&&POI.list.length?' · 장소 © OpenStreetMap contributors':'');
 }
 let lastShow=null,lastPoi=null;
 setInterval(()=>{
@@ -3194,8 +3199,8 @@ setInterval(()=>{
     if(want){MP.failed=false;startLoad()}
     PL.dirty(); updAttr();
   }
-  if(want&&!MP.loading&&MP.key!==keyOf()){startLoad()}
-  if(want&&S.show.poi&&mapOn()&&POI.key!==keyOf())loadPoi();
+  if(want&&!MP.loading&&MP.key!==curKey()){startLoad()}
+  if(want&&S.show.poi&&!isSt()&&mapOn()&&POI.key!==keyOf())loadPoi();
   if(lastPoi!==!!S.show.poi){lastPoi=!!S.show.poi;try{localStorage.setItem('maruvi_poi',lastPoi?'1':'0')}catch(e){}PL.dirty()}
   updAttr();
 },600);
