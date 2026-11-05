@@ -2956,13 +2956,19 @@ const GIBS_LAYERS=[
   (z,x,y)=>'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlackMarble_2016/default/default/GoogleMapsCompatible_Level8/'+z+'/'+y+'/'+x+'.png',
 ];
 const CARTO=(z,x,y)=>'https://basemaps.cartocdn.com/rastertiles/voyager_nolabels/'+z+'/'+x+'/'+y+'.png';
-const CARTO_L=(z,x,y)=>'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/'+z+'/'+y+'/'+x; // 길 지도(Esri, 키 필요 없음)
+const CARTO_L=(z,x,y)=>'https://tile.openstreetmap.org/'+z+'/'+x+'/'+y+'.png'; // 길 지도(OpenStreetMap, 키 필요 없음)
+// 브이월드(국토교통부) 지도: 한국 전역의 선명한 위성사진·도로지도. 인증키는 이 사이트 주소(도메인)에 묶여 있습니다.
+// 다른 키를 쓰려면 브라우저에서 localStorage 'maruvi_vkey'에 넣으면 우선 적용됩니다.
+let VKEY='CA4EBB3D-6B02-4638-B733-5C368E8AC4F8'; try{const k=localStorage.getItem('maruvi_vkey'); if(k)VKEY=k}catch(e){}
+const VW=(layer,ext)=>(z,x,y)=>'https://api.vworld.kr/req/wmts/1.0.0/'+VKEY+'/'+layer+'/'+z+'/'+y+'/'+x+'.'+ext;
+const SRC_SAT=[{n:'vworld',fn:VW('Satellite','jpeg'),chk:true},{n:'esri',fn:ESRI,chk:true}];
+const SRC_ST=[{n:'vworld',fn:VW('Base','png'),chk:false},{n:'osm',fn:CARTO_L,chk:false}];
 const LV_SAT=[{key:'z12',z:12},{key:'z14',z:14},{key:'z16',z:16}],LV_ST=[{key:'z12',z:13},{key:'z14',z:15},{key:'z16',z:17}];
 const isSt=()=>!!S.show.street;
 const curKey=()=>keyOf()+(isSt()?'s':'a'); // 먼 곳 → 가까운 곳 순서로 불러옴
 const N_T=3; // 레벨마다 3×3 타일
 
-const MP={lv:{},lights:null,key:'',failed:false,loading:false,ver:0,msgShown:false,errMsg:false,cfg:null};
+const MP={src:'',lv:{},lights:null,key:'',failed:false,loading:false,ver:0,msgShown:false,errMsg:false,cfg:null};
 try{ if(localStorage.getItem('maruvi_map')==='0')S.show.map=false; if(localStorage.getItem('maruvi_street')==='1')S.show.street=true }catch(e){}
 
 // ---------------------------------------------------------------- 타일 좌표
@@ -2977,13 +2983,23 @@ function loadImg(url){
     im.src=url;
   });
 }
-async function buildMosaic(urlFn,z,lat,lon,f){
+// Esri는 사진이 없는 곳에 'Map data not yet available' 안내 그림(밝은 회색 + 글자)을 정상 응답으로 보냅니다.
+// 이런 타일은 지도로 쓰지 않고(구멍으로 처리) 더 낮은 해상도 지도가 대신 보이게 합니다.
+const _tc=document.createElement('canvas'); _tc.width=_tc.height=32; const _tg=_tc.getContext('2d',{willReadFrequently:true});
+function isPlaceholder(im){
+  try{
+    _tg.clearRect(0,0,32,32); _tg.drawImage(im,0,0,32,32); const d=_tg.getImageData(0,0,32,32).data, cnt={}; let top=0,lum=0,sat=0;
+    for(let i=0;i<d.length;i+=4){const k=(d[i]>>3)*1024+(d[i+1]>>3)*32+(d[i+2]>>3); const c=(cnt[k]||0)+1; cnt[k]=c; if(c>top)top=c; lum+=(d[i]+d[i+1]+d[i+2])/3; sat+=Math.abs(d[i]-d[i+2])}
+    const n=1024; return top/n>0.85 && lum/n>170 && sat/n<14;
+  }catch(e){return false}
+}
+async function buildMosaic(urlFn,z,lat,lon,f,chk){
   f=f||1; const TS=256*f; const wx=wX(lon,z),wy=wY(lat,z),X0=Math.floor(wx/256)-1,Y0=Math.floor(wy/256)-1,size=TS*N_T,maxT=Math.pow(2,z);
   const cv=document.createElement('canvas'); cv.width=cv.height=size; const g=cv.getContext('2d',{willReadFrequently:true});
   let ok=0; const jobs=[];
   for(let j=0;j<N_T;j++)for(let i=0;i<N_T;i++){
     const tx=((X0+i)%maxT+maxT)%maxT,ty=Y0+j; if(ty<0||ty>=maxT)continue;
-    jobs.push(loadImg(urlFn(z,tx,ty)).then(im=>{if(im){try{g.drawImage(im,i*TS,j*TS,TS,TS);ok++}catch(e){}}}));
+    jobs.push(loadImg(urlFn(z,tx,ty)).then(im=>{if(im&&!(chk&&isPlaceholder(im))){try{g.drawImage(im,i*TS,j*TS,TS,TS);ok++}catch(e){}}}));
   }
   await Promise.all(jobs);
   if(!ok)return null;
@@ -2997,9 +3013,14 @@ async function startLoad(){
   PL.toast(isSt()?'🗺 길 지도를 불러오는 중이에요…':'🛰 위성지도를 불러오는 중이에요…',2200);
   try{
     const st=isSt();
+    const srcs=st?SRC_ST:SRC_SAT; let src=null;
     for(const L of (st?LV_ST:LV_SAT)){
       if(curKey()!==key)break; // 도중에 장소가 바뀌면 중단
-      const m=await buildMosaic(st?CARTO_L:ESRI,L.z,lat,lon,1);
+      let m=null;
+      if(!src){ // 첫 단계: 쓸 수 있는 지도 서버를 차례로 시험 (브이월드 → 대체 서버)
+        for(const c of srcs){ try{m=await buildMosaic(c.fn,L.z,lat,lon,1,c.chk)}catch(e){m=null} if(m){src=c;break} }
+        MP.src=src?src.n:'';
+      }else{ try{m=await buildMosaic(src.fn,L.z,lat,lon,1,src.chk)}catch(e){m=null} }
       if(!m){ if(L.key==='z12'){MP.failed=true;break} continue }
       MP.lv[L.key]=m; MP.ver++; PL.dirty();
       if(L.key==='z12'&&!MP.msgShown){MP.msgShown=true;PL.toast((S.place&&(S.place.id==='here'||S.place.id==='custom-xy'))?'🛰 위성지도 지면을 켰어요. 폰을 아래로 향하거나 화면을 아래로 끌어 보세요.':'🛰 지도는 서산시 중심 기준이에요. 정확한 우리 동네는 ⚙설정 → [내 위치]를 눌러 맞춰 주세요.',6500)}
@@ -3012,6 +3033,7 @@ async function startLoad(){
     }
   }catch(e){ console.warn('map load',e); if(!MP.lv.z12)MP.failed=true }
   MP.loading=false;
+  if(MP.failed&&isSt()){S.show.street=false;MP.failed=false;MP.key='';PL.toast('🗺 길 지도를 받지 못해 위성지도로 바꿨어요.',4000);PL.dirty();return}
   if(MP.failed&&!MP.errMsg){MP.errMsg=true;PL.toast('🛰 위성지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요. 기본 지평선으로 보여 드려요.',6000)}
   PL.dirty(); updAttr();
 }
@@ -3190,7 +3212,7 @@ function updAttr(){
     st.textContent='#mapAttr{position:absolute;right:10px;bottom:120px;z-index:3;max-width:min(420px,calc(100vw - 20px));font-size:9.5px;line-height:1.3;color:rgba(235,242,255,.78);text-align:right;text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:none;display:none}#app.arOn #mapAttr{bottom:136px}@media (max-width:520px){#mapAttr{right:8px;bottom:120px}}';
     document.head.appendChild(st)}
   attr.style.display=mapOn()?'block':'none';
-  attr.textContent=isSt()?'길 지도 © Esri, HERE, Garmin, © OpenStreetMap contributors':'위성지도 © Esri, Maxar, Earthstar Geographics, GIS User Community'+(MP.lights?' · 야간 불빛 NASA GIBS(VIIRS)':'')+(S.show.poi&&!isSt()&&POI.list.length?' · 장소 © OpenStreetMap contributors':'');
+  attr.textContent=MP.src==='vworld'?(isSt()?'길 지도 © 국토교통부 브이월드(VWorld)':'위성지도 © 국토교통부 브이월드(VWorld)'):(isSt()?'길 지도 © OpenStreetMap contributors':'위성지도 © Esri, Maxar, Earthstar Geographics, GIS User Community')+(MP.lights?' · 야간 불빛 NASA GIBS(VIIRS)':'')+(S.show.poi&&!isSt()&&POI.list.length?' · 장소 © OpenStreetMap contributors':'');
 }
 let lastShow=null,lastPoi=null;
 setInterval(()=>{
