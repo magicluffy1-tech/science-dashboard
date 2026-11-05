@@ -2956,7 +2956,7 @@ const GIBS_LAYERS=[
   (z,x,y)=>'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlackMarble_2016/default/default/GoogleMapsCompatible_Level8/'+z+'/'+y+'/'+x+'.png',
 ];
 const CARTO=(z,x,y)=>'https://basemaps.cartocdn.com/rastertiles/voyager_nolabels/'+z+'/'+x+'/'+y+'.png';
-const CARTO_L=(z,x,y)=>'https://basemaps.cartocdn.com/rastertiles/voyager/'+z+'/'+x+'/'+y+'.png';
+const CARTO_L=(z,x,y)=>'https://basemaps.cartocdn.com/rastertiles/voyager/'+z+'/'+x+'/'+y+'@2x.png'; // 2배 선명도(512px)
 const LV_SAT=[{key:'z12',z:12},{key:'z14',z:14},{key:'z16',z:16}],LV_ST=[{key:'z12',z:13},{key:'z14',z:15},{key:'z16',z:17}];
 const isSt=()=>!!S.show.street;
 const curKey=()=>keyOf()+(isSt()?'s':'a'); // 먼 곳 → 가까운 곳 순서로 불러옴
@@ -2977,18 +2977,18 @@ function loadImg(url){
     im.src=url;
   });
 }
-async function buildMosaic(urlFn,z,lat,lon){
-  const wx=wX(lon,z),wy=wY(lat,z),X0=Math.floor(wx/256)-1,Y0=Math.floor(wy/256)-1,size=256*N_T,maxT=Math.pow(2,z);
+async function buildMosaic(urlFn,z,lat,lon,f){
+  f=f||1; const TS=256*f; const wx=wX(lon,z),wy=wY(lat,z),X0=Math.floor(wx/256)-1,Y0=Math.floor(wy/256)-1,size=TS*N_T,maxT=Math.pow(2,z);
   const cv=document.createElement('canvas'); cv.width=cv.height=size; const g=cv.getContext('2d',{willReadFrequently:true});
   let ok=0; const jobs=[];
   for(let j=0;j<N_T;j++)for(let i=0;i<N_T;i++){
     const tx=((X0+i)%maxT+maxT)%maxT,ty=Y0+j; if(ty<0||ty>=maxT)continue;
-    jobs.push(loadImg(urlFn(z,tx,ty)).then(im=>{if(im){try{g.drawImage(im,i*256,j*256);ok++}catch(e){}}}));
+    jobs.push(loadImg(urlFn(z,tx,ty)).then(im=>{if(im){try{g.drawImage(im,i*TS,j*TS,TS,TS);ok++}catch(e){}}}));
   }
   await Promise.all(jobs);
   if(!ok)return null;
   const data=g.getImageData(0,0,size,size).data; // CORS가 막혀 있으면 여기서 예외 → 호출한 쪽에서 처리
-  return {z,size,X0,Y0,wx,wy,mpp:mpp(lat,z),data,ok};
+  return {z,size,X0,Y0,wx,wy,mpp:mpp(lat,z),data,ok,f};
 }
 function keyOf(){return S.lat.toFixed(3)+','+S.lon.toFixed(3)}
 async function startLoad(){
@@ -2999,7 +2999,7 @@ async function startLoad(){
     const st=isSt();
     for(const L of (st?LV_ST:LV_SAT)){
       if(curKey()!==key)break; // 도중에 장소가 바뀌면 중단
-      const m=await buildMosaic(st?CARTO_L:ESRI,L.z,lat,lon);
+      const m=await buildMosaic(st?CARTO_L:ESRI,L.z,lat,lon,st?2:1);
       if(!m){ if(L.key==='z12'){MP.failed=true;break} continue }
       MP.lv[L.key]=m; MP.ver++; PL.dirty();
       if(L.key==='z12'&&!MP.msgShown){MP.msgShown=true;PL.toast((S.place&&(S.place.id==='here'||S.place.id==='custom-xy'))?'🛰 위성지도 지면을 켰어요. 폰을 아래로 향하거나 화면을 아래로 끌어 보세요.':'🛰 지도는 서산시 중심 기준이에요. 정확한 우리 동네는 ⚙설정 → [내 위치]를 눌러 맞춰 주세요.',6500)}
@@ -3017,7 +3017,7 @@ async function startLoad(){
 }
 // ---------------------------------------------------------------- 샘플링
 function sampleImg(m,east,north,out){
-  const px=m.wx+east/m.mpp-m.X0*256, py=m.wy-north/m.mpp-m.Y0*256;
+  const f=m.f||1, px=(m.wx+east/m.mpp-m.X0*256)*f, py=(m.wy-north/m.mpp-m.Y0*256)*f;
   if(px<1||py<1||px>=m.size-1||py>=m.size-1)return false;
   const i=((py|0)*m.size+(px|0))*4,d=m.data; if(d[i+3]<250)return false;
   out[0]=d[i];out[1]=d[i+1];out[2]=d[i+2];return true;
@@ -3040,8 +3040,8 @@ function drawBuf(){
   const d=bufImg.data; d.fill(0);
   const dayW=FR.dayW,nf=FR.nf,tw=FR.twi;
   const moon=FR.moon,ml=(moon.alt>0?(moon.frac||0)*clamp(moon.alt/18,0,1):0);
-  const night=(st?0.55:0.07)+0.11*ml, illum=lerp(night,1,Math.pow(dayW,0.8));
-  const tintR=lerp(1,0.55,nf)*(1+0.32*tw),tintG=lerp(1,0.72,nf),tintB=lerp(1,1.0,nf)*(1-0.18*tw);
+  const night=(st?0.7:0.07)+0.11*ml, illum=lerp(night,1,Math.pow(dayW,0.8));
+  const tintR=lerp(1,st?0.82:0.55,nf)*(1+0.32*tw),tintG=lerp(1,st?0.88:0.72,nf),tintB=lerp(1,1.0,nf)*(1-0.18*tw);
   const lightK=st?0:nf*(1-dayW)*(1.0+(S.lp-1)*0.04);
   const sv=FR.sunVec,F=FR.F,fE=FR.fE,fN=FR.fN,fU=FR.fU,rE=FR.rE,rN=FR.rN,rU=FR.rU,uE=FR.uE,uN=FR.uN,uU=FR.uU;
   const lvs=[MP.lv.z16,MP.lv.z14,MP.lv.z12].filter(Boolean), li=MP.lights;
