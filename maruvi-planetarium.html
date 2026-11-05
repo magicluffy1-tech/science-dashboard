@@ -1273,7 +1273,7 @@ const TB=[
  'sep',
  ['meridian','📍','남쪽\n자오선'],['agrid','🧭','고도·방위\n격자'],['egrid','🌐','적도·황도\n격자'],['ast','','']/*hidden*/,
  'sep',
- ['atmo','☁','대기'],['ground','⛰','지평선'],['map','🛰','위성\n지도'],['street','🗺','길 지도\n(글자)'],['poi','📌','장소\n이름'],['trails','🌀','별 궤적'],
+ ['atmo','☁','대기'],['ground','⛰','지평선'],['map','🗺','지도\n끔·위성·길'],['poi','📌','장소\n이름'],['trails','🌀','별 궤적'],
  'sep',
  ['ar','📱','폰으로\n보기'],['tonight','🌟','오늘 밤\n추천'],['now','🌌','지금\n우주'],['zodiac','♈','황도\n12궁'],['measure','📏','각도 재기'],['search','🔍','검색'],['v3d','🔭','3D 거리'],['show','🎙','해설'],['settings','⚙','설정'],['full','⛶','전체화면']
 ];
@@ -1307,6 +1307,7 @@ function toolAction(k){
   if(k==='now'){window.toggleNow&&window.toggleNow();return}
   if(k==='zodiac'){window.toggleZodiac&&window.toggleZodiac();return}
   if(k==='full'){try{const d=document.documentElement;if(document.fullscreenElement)document.exitFullscreen();else (d.requestFullscreen||d.webkitRequestFullscreen).call(d)}catch(e){toast('이 화면에서는 전체화면을 쓸 수 없어요. 브라우저의 전체화면(F11)을 이용하세요.')}return}
+  if(k==='map'){if(!S.show.map){S.show.map=true;S.show.street=false;if(!S.show.ground)S.show.ground=true;toast('🛰 위성지도')}else if(!S.show.street){S.show.street=true;toast('🗺 길 지도 (도로·건물 이름)')}else{S.show.map=false;S.show.street=false;toast('지도를 껐어요 (기본 지평선)')}refreshToolbar();dirty();return}
   if(k==='trails'){S.show.trails=!S.show.trails;if(S.show.trails){S.trailHours=3;if(!S.playing||S.rate===0){}}refreshToolbar();dirty();toast(S.show.trails?'🌀 최근 3시간 동안 별의 움직임이 선으로 나타납니다':'별 궤적을 껐습니다');return}
   toggle(k);
 }
@@ -2962,7 +2963,7 @@ const curKey=()=>keyOf()+(isSt()?'s':'a'); // 먼 곳 → 가까운 곳 순서�
 const N_T=3; // 레벨마다 3×3 타일
 
 const MP={lv:{},lights:null,key:'',failed:false,loading:false,ver:0,msgShown:false,errMsg:false,cfg:null};
-try{ if(localStorage.getItem('maruvi_map')==='0')S.show.map=false }catch(e){}
+try{ if(localStorage.getItem('maruvi_map')==='0')S.show.map=false; if(localStorage.getItem('maruvi_street')==='1')S.show.street=true }catch(e){}
 
 // ---------------------------------------------------------------- 타일 좌표
 const wX=(lon,z)=>(lon+180)/360*256*Math.pow(2,z);
@@ -3199,6 +3200,7 @@ setInterval(()=>{
     if(want){MP.failed=false;startLoad()}
     PL.dirty(); updAttr();
   }
+  try{localStorage.setItem('maruvi_street',S.show.street?'1':'0')}catch(e){}
   if(want&&!MP.loading&&MP.key!==curKey()){startLoad()}
   if(want&&S.show.poi&&!isSt()&&mapOn()&&POI.key!==keyOf())loadPoi();
   if(lastPoi!==!!S.show.poi){lastPoi=!!S.show.poi;try{localStorage.setItem('maruvi_poi',lastPoi?'1':'0')}catch(e){}PL.dirty()}
