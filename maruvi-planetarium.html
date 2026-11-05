@@ -437,7 +437,7 @@ const S={
   t:Date.now(), rate:1, playing:true,
   az:180, alt:35, fov:100,
   tgt:null,
-  show:{lines:true,names:true,stars:true,bodies:true,dso:true,milky:true,meridian:false,agrid:false,egrid:false,atmo:true,ground:true,map:true,ast:true,trails:false},
+  show:{lines:true,names:true,stars:true,bodies:true,dso:true,milky:true,meridian:false,agrid:false,egrid:false,atmo:true,ground:true,map:true,poi:true,ast:true,trails:false},
   lp:3, starScale:1,
   sel:null, hl:{cons:[],stars:[],ast:[],guides:[],dso:[],labels:true,pulse:true}, measure:{on:false,pts:[]},
   trailHours:3, forceLim:null,
@@ -1273,7 +1273,7 @@ const TB=[
  'sep',
  ['meridian','📍','남쪽\n자오선'],['agrid','🧭','고도·방위\n격자'],['egrid','🌐','적도·황도\n격자'],['ast','','']/*hidden*/,
  'sep',
- ['atmo','☁','대기'],['ground','⛰','지평선'],['map','🛰','위성\n지도'],['trails','🌀','별 궤적'],
+ ['atmo','☁','대기'],['ground','⛰','지평선'],['map','🛰','위성\n지도'],['poi','📌','장소\n이름'],['trails','🌀','별 궤적'],
  'sep',
  ['ar','📱','폰으로\n보기'],['tonight','🌟','오늘 밤\n추천'],['now','🌌','지금\n우주'],['zodiac','♈','황도\n12궁'],['measure','📏','각도 재기'],['search','🔍','검색'],['v3d','🔭','3D 거리'],['show','🎙','해설'],['settings','⚙','설정'],['full','⛶','전체화면']
 ];
@@ -2996,7 +2996,7 @@ async function startLoad(){
       const m=await buildMosaic(ESRI,L.z,lat,lon);
       if(!m){ if(L.key==='z12'){MP.failed=true;break} continue }
       MP.lv[L.key]=m; MP.ver++; PL.dirty();
-      if(L.key==='z12'&&!MP.msgShown){MP.msgShown=true;PL.toast('🛰 위성지도 지면을 켰어요. 폰을 아래로 향하거나 화면을 아래로 끌어 보세요.',4500)}
+      if(L.key==='z12'&&!MP.msgShown){MP.msgShown=true;PL.toast((S.place&&(S.place.id==='here'||S.place.id==='custom-xy'))?'🛰 위성지도 지면을 켰어요. 폰을 아래로 향하거나 화면을 아래로 끌어 보세요.':'🛰 지도는 서산시 중심 기준이에요. 정확한 우리 동네는 ⚙설정 → [내 위치]를 눌러 맞춰 주세요.',6500)}
     }
     if(!MP.failed&&keyOf()===key){
       for(const f of GIBS_LAYERS){
@@ -3083,6 +3083,99 @@ window.__mapFill=function(rule){
   g.drawImage(bufC,0,0,w,h,0,0,FR.W,FR.H);
   g.restore(); return true;
 };
+
+// ---------------------------------------------------------------- 📌 장소·건물 이름 (OpenStreetMap)
+const POI={list:[],key:'',loading:false,fail:false};
+try{ if(localStorage.getItem('maruvi_poi')==='0')S.show.poi=false }catch(e){}
+const OVP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+function poiClass(t){
+  if(t.place&&/^(city|town|village|suburb|neighbourhood|hamlet|quarter|isolated_dwelling)$/.test(t.place))return {c:'place',pr:0,ico:'📍'};
+  const am=t.amenity||'';
+  if(am==='school'||am==='kindergarten'||am==='university'||am==='college')return {c:'school',pr:1,ico:'🏫'};
+  if(/^(townhall|police|fire_station|hospital|clinic|library|community_centre|post_office|courthouse)$/.test(am)||t.office==='government')return {c:'public',pr:1,ico:'🏛'};
+  if(t.building==='apartments'||t.building==='residential'||t.landuse==='residential')return {c:'apt',pr:2,ico:'🏢'};
+  if(t.railway==='station'||t.public_transport==='station')return {c:'public',pr:1,ico:'🚉'};
+  if(t.leisure||t.tourism||t.historic)return {c:'leisure',pr:2,ico:'🌳'};
+  if(t.shop||am==='restaurant'||am==='cafe'||am==='bank'||am==='fuel')return {c:'shop',pr:3,ico:'🏪'};
+  if(t.industrial||t.building==='industrial'||t.man_made==='works')return {c:'ind',pr:3,ico:'🏭'};
+  if(t.building)return {c:'bld',pr:3,ico:'🏠'};
+  return {c:'etc',pr:4,ico:'•'};
+}
+function poiQuery(lat,lon){
+  const R=3000,r2=6000, a='(around:'+R+','+lat+','+lon+')', b='(around:'+r2+','+lat+','+lon+')';
+  return '[out:json][timeout:25];('+
+   'nwr["name"]["place"]'+b+';'+
+   'nwr["name"]["amenity"~"school|kindergarten|university|college|townhall|police|fire_station|hospital|library|community_centre|post_office|courthouse"]'+a+';'+
+   'nwr["name"]["building"~"apartments|residential|public|civic|church|hospital|school|industrial|commercial|retail"]'+a+';'+
+   'nwr["name"]["leisure"~"park|stadium|sports_centre|pitch"]'+a+';'+
+   'nwr["name"]["tourism"]'+a+';nwr["name"]["historic"]'+a+';nwr["name"]["landuse"~"residential|industrial"]'+a+';'+
+   'nwr["name"]["railway"="station"]'+a+';'+
+   ');out center tags 400;';
+}
+function cacheKey(lat,lon){return 'maruvi_poi_'+lat.toFixed(2)+'_'+lon.toFixed(2)}
+async function fetchOverpass(q){
+  for(const u of OVP){
+    try{
+      const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),22000);
+      const r=await fetch(u+'?data='+encodeURIComponent(q),{signal:ctl.signal}); clearTimeout(to);
+      if(!r.ok)continue; return await r.json();
+    }catch(e){}
+  }
+  return null;
+}
+function parsePoi(js,lat,lon){
+  const out=[],seen={}, kx=111320*Math.cos(lat*D2R), ky=110574;
+  for(const e of (js&&js.elements)||[]){
+    const t=e.tags||{}, nm=(t['name:ko']||t.name||'').trim(); if(!nm)continue;
+    const la=e.lat!=null?e.lat:(e.center&&e.center.lat), lo=e.lon!=null?e.lon:(e.center&&e.center.lon); if(la==null||lo==null)continue;
+    const cl=poiClass(t); const east=(lo-lon)*kx, north=(la-lat)*ky, dist=Math.hypot(east,north);
+    if(dist<25)continue; if(cl.c!=='place'&&dist>3200)continue;
+    const id=nm+'|'+Math.round(east/60)+'|'+Math.round(north/60); if(seen[id])continue; seen[id]=1;
+    out.push({nm,east,north,dist,cl});
+  }
+  out.sort((a,b)=>a.cl.pr-b.cl.pr||a.dist-b.dist);
+  return out.slice(0,220);
+}
+async function loadPoi(){
+  if(POI.loading)return; const key=keyOf(); if(POI.key===key)return;
+  POI.key=key; POI.list=[]; POI.fail=false;
+  const lat=S.lat,lon=S.lon,ck=cacheKey(lat,lon);
+  try{ const c=JSON.parse(localStorage.getItem(ck)||'null'); if(c&&Date.now()-c.t<30*864e5){POI.list=parsePoi(c.js,lat,lon);PL.dirty();return} }catch(e){}
+  POI.loading=true;
+  const js=await fetchOverpass(poiQuery(lat,lon));
+  POI.loading=false;
+  if(keyOf()!==key)return;
+  if(!js){POI.fail=true;PL.toast('📌 장소 이름을 불러오지 못했어요. 지도만 보여 드려요.',3500);return}
+  POI.list=parsePoi(js,lat,lon);
+  try{localStorage.setItem(ck,JSON.stringify({t:Date.now(),js:{elements:(js.elements||[]).slice(0,400)}}))}catch(e){}
+  PL.toast('📌 주변 장소 '+POI.list.length+'곳의 이름을 표시해요',3000); PL.dirty();
+}
+function drawPoi(){
+  if(!(S.show.poi&&mapOn()&&POI.list.length))return;
+  const g=G.ctx,fE=FR.fE,fN=FR.fN,fU=FR.fU,rE=FR.rE,rN=FR.rN,rU=FR.rU,uE=FR.uE,uN=FR.uN,uU=FR.uU,F=FR.F;
+  const boxes=[]; let n=0;
+  g.save(); g.textAlign='left'; g.textBaseline='middle'; g.lineJoin='round';
+  const colors={place:'#ffe9a8',school:'#9fe8ff',public:'#ffb3b3',apt:'#d8ffc2',leisure:'#b5f5c8',shop:'#ffd9f0',ind:'#d9d2c2',bld:'#ffffff',etc:'#ffffff'};
+  for(const p of POI.list){
+    if(n>=70)break;
+    const L=Math.hypot(p.east,p.north,OBS_H), e=p.east/L,nn=p.north/L,u=-OBS_H/L;
+    const cc=e*fE+nn*fN+u*fU; if(cc<-0.5)continue;
+    const k=2/(1+cc), x=FR.cx+F*k*(e*rE+nn*rN+u*rU), y=FR.cy-F*k*(e*uE+nn*uN+u*uU);
+    if(x<-20||x>FR.W+20||y<-10||y>FR.H+10)continue;
+    const sz=clamp(15-p.dist/450,9.5,15)+(p.cl.pr===0?1.5:0);
+    g.font='600 '+sz+'px '+PL.FONT;
+    const txt=p.cl.ico+' '+p.nm, w=g.measureText(txt).width, bx={x:x-4,y:y-sz*0.7,w:w+8,h:sz*1.4};
+    let hit=false; for(const b of boxes){if(bx.x<b.x+b.w&&bx.x+bx.w>b.x&&bx.y<b.y+b.h&&bx.y+bx.h>b.y){hit=true;break}}
+    if(hit)continue; boxes.push(bx); n++;
+    const al=clamp(1.15-p.dist/4500,0.45,1);
+    g.globalAlpha=al; g.fillStyle='#ff5a4d'; g.beginPath(); g.arc(x,y,3,0,6.283); g.fill();
+    g.lineWidth=3.2; g.strokeStyle='rgba(0,0,0,.78)'; g.strokeText(txt,x+6,y); g.fillStyle=colors[p.cl.c]||'#fff'; g.fillText(txt,x+6,y);
+  }
+  g.restore();
+}
+const prevPost=window.__postRender;
+window.__postRender=function(now){ if(prevPost)prevPost(now); try{drawPoi()}catch(e){console.warn('poi',e)} };
+
 // ---------------------------------------------------------------- 출처 표기 · 상태 감시
 let attr=null;
 function updAttr(){
@@ -3091,9 +3184,9 @@ function updAttr(){
     st.textContent='#mapAttr{position:absolute;right:10px;bottom:120px;z-index:3;max-width:min(420px,calc(100vw - 20px));font-size:9.5px;line-height:1.3;color:rgba(235,242,255,.78);text-align:right;text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:none;display:none}#app.arOn #mapAttr{bottom:136px}@media (max-width:520px){#mapAttr{right:8px;bottom:120px}}';
     document.head.appendChild(st)}
   attr.style.display=mapOn()?'block':'none';
-  attr.textContent='위성지도 © Esri, Maxar, Earthstar Geographics, GIS User Community'+(MP.lights?' · 야간 불빛 NASA GIBS(VIIRS)':'');
+  attr.textContent='위성지도 © Esri, Maxar, Earthstar Geographics, GIS User Community'+(MP.lights?' · 야간 불빛 NASA GIBS(VIIRS)':'')+(S.show.poi&&POI.list.length?' · 장소 © OpenStreetMap contributors':'');
 }
-let lastShow=null;
+let lastShow=null,lastPoi=null;
 setInterval(()=>{
   const want=!!(S.show.map&&S.show.ground);
   if(want!==lastShow){
@@ -3102,9 +3195,11 @@ setInterval(()=>{
     PL.dirty(); updAttr();
   }
   if(want&&!MP.loading&&MP.key!==keyOf()){startLoad()}
+  if(want&&S.show.poi&&mapOn()&&POI.key!==keyOf())loadPoi();
+  if(lastPoi!==!!S.show.poi){lastPoi=!!S.show.poi;try{localStorage.setItem('maruvi_poi',lastPoi?'1':'0')}catch(e){}PL.dirty()}
   updAttr();
 },600);
-window.MAP_API={MP,mapOn,startLoad,drawBuf,OBS_H};
+window.MAP_API={POI,loadPoi,parsePoi,MP,mapOn,startLoad,drawBuf,OBS_H};
 })();
 
 (function(){
@@ -3191,11 +3286,11 @@ function useHere(opt){
       const lat=pos.coords.latitude,lon=pos.coords.longitude;
       applyPlace({id:'here',name:'내 위치',lat:Math.max(-89.9,Math.min(89.9,lat)),lon:lon,tz:tzNow()},'here');
       closeChooser();
-      note(`📍 내 위치로 하늘을 맞췄어요 (위도 ${lat.toFixed(1)}°, 경도 ${lon.toFixed(1)}°)`);
+      note(`📍 내 위치로 맞췄어요 (위도 ${lat.toFixed(4)}°, 경도 ${lon.toFixed(4)}°, 오차 약 ${Math.round(pos.coords.accuracy||0)}m)`,7000);
     },err=>{
       gotAnswer=true; clearTimeout(pending);
       openChooser(failWhy(err&&err.code));
-    },{enableHighAccuracy:false,timeout:12000,maximumAge:10*60*1000});
+    },{enableHighAccuracy:true,timeout:15000,maximumAge:60*1000});
   }catch(e){gotAnswer=true;clearTimeout(pending);openChooser('위치를 쓸 수 없는 화면이에요.')}
 }
 function buildAsk(){
