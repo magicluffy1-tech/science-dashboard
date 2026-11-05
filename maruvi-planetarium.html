@@ -2956,7 +2956,7 @@ const GIBS_LAYERS=[
   (z,x,y)=>'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlackMarble_2016/default/default/GoogleMapsCompatible_Level8/'+z+'/'+y+'/'+x+'.png',
 ];
 const CARTO=(z,x,y)=>'https://basemaps.cartocdn.com/rastertiles/voyager_nolabels/'+z+'/'+x+'/'+y+'.png';
-const CARTO_L=(z,x,y)=>'https://basemaps.cartocdn.com/rastertiles/voyager/'+z+'/'+x+'/'+y+'@2x.png'; // 2배 선명도(512px)
+const CARTO_L=(z,x,y)=>'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/'+z+'/'+y+'/'+x; // 길 지도(Esri, 키 필요 없음)
 const LV_SAT=[{key:'z12',z:12},{key:'z14',z:14},{key:'z16',z:16}],LV_ST=[{key:'z12',z:13},{key:'z14',z:15},{key:'z16',z:17}];
 const isSt=()=>!!S.show.street;
 const curKey=()=>keyOf()+(isSt()?'s':'a'); // 먼 곳 → 가까운 곳 순서로 불러옴
@@ -2999,7 +2999,7 @@ async function startLoad(){
     const st=isSt();
     for(const L of (st?LV_ST:LV_SAT)){
       if(curKey()!==key)break; // 도중에 장소가 바뀌면 중단
-      const m=await buildMosaic(st?CARTO_L:ESRI,L.z,lat,lon,st?2:1);
+      const m=await buildMosaic(st?CARTO_L:ESRI,L.z,lat,lon,1);
       if(!m){ if(L.key==='z12'){MP.failed=true;break} continue }
       MP.lv[L.key]=m; MP.ver++; PL.dirty();
       if(L.key==='z12'&&!MP.msgShown){MP.msgShown=true;PL.toast((S.place&&(S.place.id==='here'||S.place.id==='custom-xy'))?'🛰 위성지도 지면을 켰어요. 폰을 아래로 향하거나 화면을 아래로 끌어 보세요.':'🛰 지도는 서산시 중심 기준이에요. 정확한 우리 동네는 ⚙설정 → [내 위치]를 눌러 맞춰 주세요.',6500)}
@@ -3190,7 +3190,7 @@ function updAttr(){
     st.textContent='#mapAttr{position:absolute;right:10px;bottom:120px;z-index:3;max-width:min(420px,calc(100vw - 20px));font-size:9.5px;line-height:1.3;color:rgba(235,242,255,.78);text-align:right;text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:none;display:none}#app.arOn #mapAttr{bottom:136px}@media (max-width:520px){#mapAttr{right:8px;bottom:120px}}';
     document.head.appendChild(st)}
   attr.style.display=mapOn()?'block':'none';
-  attr.textContent=isSt()?'지도 © OpenStreetMap contributors © CARTO':'위성지도 © Esri, Maxar, Earthstar Geographics, GIS User Community'+(MP.lights?' · 야간 불빛 NASA GIBS(VIIRS)':'')+(S.show.poi&&!isSt()&&POI.list.length?' · 장소 © OpenStreetMap contributors':'');
+  attr.textContent=isSt()?'길 지도 © Esri, HERE, Garmin, © OpenStreetMap contributors':'위성지도 © Esri, Maxar, Earthstar Geographics, GIS User Community'+(MP.lights?' · 야간 불빛 NASA GIBS(VIIRS)':'')+(S.show.poi&&!isSt()&&POI.list.length?' · 장소 © OpenStreetMap contributors':'');
 }
 let lastShow=null,lastPoi=null;
 setInterval(()=>{
