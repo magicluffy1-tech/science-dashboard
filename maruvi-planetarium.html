@@ -1266,7 +1266,7 @@ const TB=[
  'sep',
  ['atmo','☁','대기'],['ground','⛰','지평선'],['trails','🌀','별 궤적'],
  'sep',
- ['ar','📱','폰으로\n보기'],['tonight','🌟','오늘 밤\n추천'],['zodiac','♈','황도\n12궁'],['measure','📏','각도 재기'],['search','🔍','검색'],['v3d','🔭','3D 거리'],['show','🎙','해설'],['settings','⚙','설정'],['full','⛶','전체화면']
+ ['ar','📱','폰으로\n보기'],['tonight','🌟','오늘 밤\n추천'],['now','🌌','지금\n우주'],['zodiac','♈','황도\n12궁'],['measure','📏','각도 재기'],['search','🔍','검색'],['v3d','🔭','3D 거리'],['show','🎙','해설'],['settings','⚙','설정'],['full','⛶','전체화면']
 ];
 function buildToolbar(){
   const tb=$('#toolbar'); tb.innerHTML='';
@@ -1283,7 +1283,7 @@ function buildToolbar(){
 function refreshToolbar(){
   document.querySelectorAll('#toolbar .btn').forEach(b=>{
     const k=b.dataset.k; let on=false;
-    if(k==='measure')on=S.measure.on; else if(k in S.show)on=S.show[k]; else if(k==='show')on=window.__showOn&&window.__showOn(); else if(k==='ar')on=window.__arOn&&window.__arOn(); else if(k==='tonight')on=window.__tonightOn&&window.__tonightOn(); else if(k==='zodiac')on=window.__zodiacOn&&window.__zodiacOn();
+    if(k==='measure')on=S.measure.on; else if(k in S.show)on=S.show[k]; else if(k==='show')on=window.__showOn&&window.__showOn(); else if(k==='ar')on=window.__arOn&&window.__arOn(); else if(k==='tonight')on=window.__tonightOn&&window.__tonightOn(); else if(k==='zodiac')on=window.__zodiacOn&&window.__zodiacOn(); else if(k==='now')on=window.__nowOn&&window.__nowOn();
     b.classList.toggle('on',!!on);
   });
 }
@@ -1295,6 +1295,7 @@ function toolAction(k){
   if(k==='show'){window.toggleShowDrawer&&window.toggleShowDrawer();return}
   if(k==='ar'){window.toggleAR&&window.toggleAR();return}
   if(k==='tonight'){window.toggleTonight&&window.toggleTonight();return}
+  if(k==='now'){window.toggleNow&&window.toggleNow();return}
   if(k==='zodiac'){window.toggleZodiac&&window.toggleZodiac();return}
   if(k==='full'){try{const d=document.documentElement;if(document.fullscreenElement)document.exitFullscreen();else (d.requestFullscreen||d.webkitRequestFullscreen).call(d)}catch(e){toast('이 화면에서는 전체화면을 쓸 수 없어요. 브라우저의 전체화면(F11)을 이용하세요.')}return}
   if(k==='trails'){S.show.trails=!S.show.trails;if(S.show.trails){S.trailHours=3;if(!S.playing||S.rate===0){}}refreshToolbar();dirty();toast(S.show.trails?'🌀 최근 3시간 동안 별의 움직임이 선으로 나타납니다':'별 궤적을 껐습니다');return}
@@ -1993,7 +1994,7 @@ function goBright(i){
 }
 function open(){
   if(window.SHOW_API&&window.SHOW_API.SH.on)window.SHOW_API.stopShow();
-  if(window.ZODIAC_API)window.ZODIAC_API.close();
+  if(window.ZODIAC_API)window.ZODIAC_API.close();if(window.NOW_API)window.NOW_API.close();
   TN.open=true; TN.month=null; if(!el)build(); el.style.display='block'; $('#info').style.display='none'; render(); apply(); PL.refreshToolbar();
 }
 function close(){
@@ -2090,7 +2091,7 @@ function sizeCanvas(){
 // ================================================================== 열기/닫기
 function open(){
   if(window.SHOW_API&&window.SHOW_API.SH.on)window.SHOW_API.stopShow();
-  if(window.TONIGHT_API)window.TONIGHT_API.close();
+  if(window.TONIGHT_API)window.TONIGHT_API.close();if(window.NOW_API)window.NOW_API.close();
   if(!el)build();
   if(!Z.open){Z.saved={show:Object.assign({},S.show),t:S.t,rate:S.rate,playing:S.playing,az:S.az,alt:S.alt,fov:S.fov}}
   Z.open=true; Z.year=yearNow(); el.style.display='block';
@@ -2466,6 +2467,465 @@ window.__tickZ=function(now,dt){
 const prevTick=window.__tick;
 window.__tick=function(now,dt){let a=false;if(prevTick)a=prevTick(now,dt);if(window.__tickZ&&window.__tickZ(now,dt))a=true;return a};
 window.ZODIAC_API={open,close,Z,conAt,sunLon2000,sunLonDate,pLon,sunSpans,CB};
+})();
+
+// 지금 우주 — 천문 계산 (Astronomy Engine 기반, 외부 접속 없음)
+(function(root){
+'use strict';
+const A=root.Astronomy;
+const AU=149597870.7,D2R=Math.PI/180,R2D=180/Math.PI,DAY=86400e3;
+const RAD_KM={Mercury:2439.7,Venus:6051.8,Mars:3389.5,Jupiter:71492,Saturn:60268,Uranus:25559,Neptune:24764};
+const PIDS=['Mercury','Venus','Mars','Jupiter','Saturn','Uranus','Neptune'];
+const KO={Sun:'태양',Moon:'달',Mercury:'수성',Venus:'금성',Mars:'화성',Jupiter:'목성',Saturn:'토성',Uranus:'천왕성',Neptune:'해왕성'};
+const DIRW=['북','북동','동','남동','남','남서','서','북서'];
+const dirWord=az=>DIRW[Math.round((((az%360)+360)%360)/45)%8];
+const obsOf=(lat,lon)=>new A.Observer(lat,lon,0);
+function eqh(id,date,obs){const eq=A.Equator(id,date,obs,true,true);const h=A.Horizon(date,obs,eq.ra,eq.dec,'normal');return {ra:eq.ra,dec:eq.dec,dist:eq.dist,alt:h.altitude,az:h.azimuth}}
+function sunAlt(date,obs){const e=A.Equator('Sun',date,obs,true,true);return A.Horizon(date,obs,e.ra,e.dec,'normal').altitude}
+function localMidnight(t,tz){const d=new Date(t+tz*3600e3);return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-tz*3600e3}
+function nightStart(t,tz){ // 기준 시각이 속한 "밤"의 시작(저녁 18시)
+  const d=new Date(t+tz*3600e3);let m=localMidnight(t,tz);if(d.getUTCHours()<6)m-=DAY;return m+18*3600e3}
+function rs(id,obs,dir,start,lim){try{const r=A.SearchRiseSet(id,obs,dir,new Date(start),lim||1);return r?r.date.getTime():null}catch(e){return null}}
+
+// ---- 오늘의 현황
+function today(t,lat,lon,tz){
+  const obs=obsOf(lat,lon),date=new Date(t),out={t};
+  // 밤 구간 표본 (15분 간격, 18시~다음 날 08시)
+  const n0=nightStart(t,tz),N=56,samp=[];
+  for(let i=0;i<=N;i++){const tt=n0+i*15*60e3,dd=new Date(tt);samp.push({t:tt,sa:sunAlt(dd,obs)})}
+  out.night0=n0;
+  // 태양
+  const e=A.Equator('Sun',date,obs,false,true);const c=A.Constellation(e.ra,e.dec);
+  out.sun={con:c.symbol,rise:rs('Sun',obs,+1,localMidnight(t,tz),1),set:rs('Sun',obs,-1,localMidnight(t,tz),1)};
+  out.sun.len=(out.sun.rise&&out.sun.set)?out.sun.set-out.sun.rise:null;
+  // 달
+  const ill=A.Illumination('Moon',date),ph=A.MoonPhase(date),dk=A.GeoMoon(date).Length()*AU;
+  const m=eqh('Moon',date,obs);
+  out.moon={phase:ph,frac:ill.phase_fraction,age:ph/360*29.530588,distKm:dk,alt:m.alt,az:m.az,
+    rise:rs('Moon',obs,+1,n0-6*3600e3,1.5),set:rs('Moon',obs,-1,n0-6*3600e3,1.5)};
+  try{out.moon.nextFull=A.SearchMoonPhase(180,date,45).date.getTime();out.moon.nextNew=A.SearchMoonPhase(0,date,45).date.getTime()}catch(_){}
+  // 행성
+  out.planets=PIDS.map(id=>{
+    const now=eqh(id,date,obs),ilu=A.Illumination(id,date),el=A.AngleFromSun(id,date);
+    const dkm=now.dist*AU;
+    const o={id,ko:KO[id],alt:now.alt,az:now.az,ra:now.ra,dec:now.dec,mag:ilu.mag,phase:ilu.phase_fraction,distAU:now.dist,elong:el,
+      size:2*RAD_KM[id]/dkm*206264.806};
+    let best=null,first=null,last=null;
+    for(const s of samp){
+      if(s.sa>-6)continue;
+      const h=eqh(id,new Date(s.t),obs);
+      if(h.alt>8){ if(first==null)first=s.t; last=s.t; if(!best||h.alt>best.alt)best={t:s.t,alt:h.alt,az:h.az} }
+    }
+    o.win=first==null?null:{first,last,best};
+    o.rise=rs(id,obs,+1,n0-6*3600e3,1.5);o.set=rs(id,obs,-1,n0-6*3600e3,1.5);
+    return o;
+  });
+  out.jmoons=jupiterMoons(date,obs);
+  out.saturn=saturnTilt(date);
+  return out;
+}
+function jupiterMoons(date,obs){
+  const eq=A.Equator('Jupiter',date,obs,false,true),a=eq.ra*15*D2R,d=eq.dec*D2R;
+  const E=[-Math.sin(a),Math.cos(a),0],Nv=[-Math.cos(a)*Math.sin(d),-Math.sin(a)*Math.sin(d),Math.cos(d)];
+  const jm=A.JupiterMoons(date),RJ=RAD_KM.Jupiter/AU;
+  const f=(k,ko,v)=>({k,ko,x:-(v.x*E[0]+v.y*E[1]+v.z*E[2])/RJ,y:(v.x*Nv[0]+v.y*Nv[1]+v.z*Nv[2])/RJ}); // x: 오른쪽이 서쪽
+  return [f('io','이오',jm.io),f('europa','유로파',jm.europa),f('ganymede','가니메데',jm.ganymede),f('callisto','칼리스토',jm.callisto)];
+}
+function saturnTilt(date){
+  const g=A.GeoVector('Saturn',date,true),L=Math.hypot(g.x,g.y,g.z);
+  const a=40.589*D2R,d=83.537*D2R,pole=[Math.cos(d)*Math.cos(a),Math.cos(d)*Math.sin(a),Math.sin(d)];
+  const s=-(pole[0]*g.x+pole[1]*g.y+pole[2]*g.z)/L;return Math.asin(Math.max(-1,Math.min(1,s)))*R2D;
+}
+
+// ---- 천문 현상 일정
+function sepDeg(a,b){const d1=a.dec*D2R,d2=b.dec*D2R,dr=(a.ra-b.ra)*15*D2R;
+  return Math.acos(Math.max(-1,Math.min(1,Math.sin(d1)*Math.sin(d2)+Math.cos(d1)*Math.cos(d2)*Math.cos(dr))))*R2D}
+function bestView(t0,ids,obs,span,sl){sl=sl==null?-6:sl; // t0 앞뒤 span(ms) 안에서 밤이고 천체들이 가장 높이 뜬 시각
+  let best=null;
+  for(let t=t0-span;t<=t0+span;t+=20*60e3){
+    const d=new Date(t);if(sunAlt(d,obs)>sl)continue;
+    let mn=90;for(const id of ids){const h=eqh(id,d,obs);if(h.alt<mn)mn=h.alt}
+    if(!best||mn>best.alt)best={t,alt:mn}
+  }
+  return best&&best.alt>5?best:null;
+}
+function pairs(from,days,obs){
+  const ids=['Moon','Mercury','Venus','Mars','Jupiter','Saturn'],step=3*3600e3,n=Math.ceil(days*DAY/step);
+  const T=[],P=ids.map(()=>[]);
+  for(let i=0;i<=n;i++){const t=from+i*step,d=new Date(t);T.push(t);ids.forEach((id,k)=>{const q=A.Equator(id,d,obs,true,true);P[k].push({ra:q.ra,dec:q.dec})})}
+  const out=[];
+  for(let a=0;a<ids.length;a++)for(let b=a+1;b<ids.length;b++){
+    const lim=a===0?5:2.2;
+    const sep=T.map((_,i)=>sepDeg(P[a][i],P[b][i]));
+    for(let i=1;i<sep.length-1;i++){
+      if(!(sep[i]<sep[i-1]&&sep[i]<=sep[i+1]&&sep[i]<lim+1.5))continue;
+      // 정밀화(삼분 탐색)
+      let lo=T[i-1],hi=T[i+1];const f=t=>{const d=new Date(t);return sepDeg(A.Equator(ids[a],d,obs,true,true),A.Equator(ids[b],d,obs,true,true))};
+      for(let k=0;k<22;k++){const m1=lo+(hi-lo)/3,m2=hi-(hi-lo)/3;if(f(m1)<f(m2))hi=m2;else lo=m1}
+      const tm=(lo+hi)/2,sm=f(tm);if(sm>lim)continue;
+      const d=new Date(tm);if(Math.min(A.AngleFromSun(ids[a],d),A.AngleFromSun(ids[b],d))<14)continue; // 태양 빛에 묻힘
+      const view=bestView(tm,[ids[a],ids[b]],obs,16*3600e3);
+      out.push({t:tm,a:ids[a],b:ids[b],sep:sm,view});
+    }
+  }
+  return out.sort((x,y)=>x.t-y.t);
+}
+function events(from,to,lat,lon,tz){
+  const obs=obsOf(lat,lon),ev=[],push=o=>{if(o.t>=from&&o.t<=to)ev.push(o)};
+  // 달 위상: 삭·망
+  try{let q=A.SearchMoonQuarter(new Date(from));for(let i=0;i<14&&q.time.date.getTime()<=Math.min(to,from+140*DAY);i++){
+    const t=q.time.date.getTime();
+    if(q.quarter===0)push({t,type:'moon',icon:'🌑',title:'삭 (신월)',desc:'달이 해와 같은 쪽에 있어 보이지 않아요. 별 보기에는 가장 좋은 때예요.'});
+    if(q.quarter===2){const dk=A.GeoMoon(q.time.date).Length()*AU;const sup=dk<=361500;
+      push({t,type:'moon',icon:'🌕',title:sup?'보름달 · 슈퍼문':'보름달 (망)',desc:'달까지 거리 약 '+Math.round(dk/1000)*1000/1000+'천 km'+(sup?' — 평소보다 크고 밝게 보여요.':'.'),super:sup})}
+    q=A.NextMoonQuarter(q)}}catch(e){}
+  // 월식
+  try{let le=A.SearchLunarEclipse(new Date(from));for(let i=0;i<4&&le.peak.date.getTime()<=to;i++){
+    const pk=le.peak.date.getTime(),kd={penumbral:'반그림자 월식',partial:'부분월식',total:'개기월식'}[le.kind]||'월식';
+    const sdp=(le.sd_partial||0)*60e3,sdt=(le.sd_total||0)*60e3;
+    const alts=[pk-sdp,pk,pk+sdp].map(tt=>eqh('Moon',new Date(tt),obs).alt),vis=alts.some(a=>a>0);
+    push({t:pk,type:'eclipse',icon:'🌘',title:kd,vis,desc:(le.kind==='penumbral'?'달이 지구의 옅은 그림자만 지나 눈으로는 거의 구분하기 어려워요. ':'')
+      +(vis?'서산에서 달이 떠 있는 동안 볼 수 있어요 (극대 때 달 고도 '+Math.round(alts[1])+'°).':'극대 때 달이 지평선 아래라 서산에서는 일부만 보이거나 보이지 않아요.'),
+      detail:{kind:le.kind,pb:pk-sdp,pe:pk+sdp,tb:sdt?pk-sdt:null,te:sdt?pk+sdt:null}});
+    le=A.NextLunarEclipse(le.peak)}}catch(e){}
+  // 일식
+  try{let g=A.SearchGlobalSolarEclipse(new Date(from));for(let i=0;i<4&&g.peak.date.getTime()<=to;i++){
+    const pk=g.peak.date.getTime(),kd={partial:'부분일식',annular:'금환일식',total:'개기일식',hybrid:'혼합일식'}[g.kind]||'일식';
+    let vis=false,ob=0,lt=pk,lalt=0;
+    try{const l=A.SearchLocalSolarEclipse(new Date(pk-2*DAY),obs);
+      if(Math.abs(l.peak.time.date.getTime()-pk)<2*DAY){lt=l.peak.time.date.getTime();ob=l.obscuration;lalt=l.peak.altitude;
+        vis=[l.partial_begin,l.peak,l.partial_end].some(x=>x&&x.altitude>0)}}catch(_){}
+    push({t:vis?lt:pk,type:'eclipse',icon:'🌒',title:kd,vis,desc:vis?'서산에서도 볼 수 있어요: 해가 최대 약 '+Math.round(ob*100)+'% 가려져요 (고도 '+Math.round(lalt)+'°). 반드시 일식 안경을 쓰세요.':'지구 다른 곳에서 일어나고, 서산에서는 볼 수 없어요.',
+      detail:{kind:g.kind}});
+    g=A.NextGlobalSolarEclipse(g.peak)}}catch(e){}
+  // 충 (외행성)
+  for(const id of ['Mars','Jupiter','Saturn','Uranus','Neptune']){
+    try{const r=A.SearchRelativeLongitude(id,0,new Date(from));const t=r.date.getTime();
+      const il=A.Illumination(id,r.date);const dist=A.GeoVector(id,r.date,true);const au=Math.hypot(dist.x,dist.y,dist.z);
+      push({t,type:'planet',icon:'🪐',body:id,title:KO[id]+' 충',desc:'지구·해·'+KO[id]+'이 일직선이 되어 밤새 보이고 가장 밝아요 (약 '+il.mag.toFixed(1)+'등급, 거리 '+au.toFixed(2)+' AU).'+(il.mag>5.4?' 맨눈으로는 어려워 쌍안경이 필요해요.':'')})}catch(e){}
+  }
+  // 수성·금성 최대 이각
+  for(const id of ['Mercury','Venus']){
+    try{let e=A.SearchMaxElongation(id,new Date(from));for(let i=0;i<6&&e.time.date.getTime()<=to;i++){
+      const ev1=e.visibility==='evening';
+      push({t:e.time.date.getTime(),type:'planet',icon:'✨',body:id,title:KO[id]+' 최대 이각 ('+(ev1?'저녁':'새벽')+')',
+        desc:'해에서 '+e.elongation.toFixed(0)+'° 떨어져 '+(ev1?'해 진 뒤 서쪽':'해 뜨기 전 동쪽')+' 하늘에서 관측하기 가장 좋은 때예요.'});
+      e=A.SearchMaxElongation(id,new Date(e.time.date.getTime()+12*DAY))}}catch(e){}
+  }
+  // 절기
+  const y0=new Date(from).getUTCFullYear();
+  for(const y of [y0,y0+1]){try{const s=A.Seasons(y);
+    [['mar_equinox','춘분','밤낮 길이가 같아지고 해가 정동에서 떠요.'],['jun_solstice','하지','북반구에서 낮이 가장 긴 날이에요.'],['sep_equinox','추분','밤낮 길이가 같아지고 해가 정동에서 떠요.'],['dec_solstice','동지','북반구에서 낮이 가장 짧은 날이에요.']]
+      .forEach(([k,n,d])=>push({t:s[k].date.getTime(),type:'season',icon:'🌗',title:n,desc:d}))}catch(e){}}
+  // 달-행성, 행성-행성 접근
+  try{for(const p of pairs(from,Math.min(120,(to-from)/DAY),obs)){
+    const moon=p.a==='Moon';const sep=p.sep;
+    push({t:p.t,type:'near',icon:moon?'🌙':'🔗',a:p.a,b:p.b,view:p.view,title:KO[p.a]+'–'+KO[p.b]+(moon?' 가까이':' 근접'),
+      desc:(moon?'달이 '+KO[p.b]+' 곁을 지나요. ':KO[p.a]+'과 '+KO[p.b]+'이 ')+'가장 가까울 때 약 '+sep.toFixed(1)+'° '+(moon?'떨어져 있어요. ':'떨어져 보여요. ')+(p.view?'서산에서 밤에 볼 수 있어요.':'서산의 밤하늘에서는 보기 어려워요.')})}
+  }catch(e){}
+  return ev.sort((a,b)=>a.t-b.t);
+}
+
+// ---- 유성우
+const SHOWERS=[
+ {id:'QUA',ko:'사분의자리 유성우',pm:[1,3],s:[12,28],e:[1,12],zhr:110,ra:230,dec:49,par:'소행성 2003 EH1',note:'극대 시간이 짧아요. 새벽에 북동쪽 하늘.'},
+ {id:'LYR',ko:'거문고자리 유성우',pm:[4,22],s:[4,14],e:[4,30],zhr:18,ra:271,dec:34,par:'대처 혜성',note:'밝은 별 베가 근처에서 퍼져요.'},
+ {id:'ETA',ko:'물병자리 에타 유성우',pm:[5,6],s:[4,19],e:[5,28],zhr:50,ra:338,dec:-1,par:'핼리 혜성',note:'새벽 동쪽 낮은 하늘. 우리나라에서는 시간당 10~30개 정도.'},
+ {id:'SDA',ko:'물병자리 델타 남쪽 유성우',pm:[7,30],s:[7,12],e:[8,23],zhr:25,ra:340,dec:-16,par:'마샹 혜성(추정)',note:'남쪽 낮은 하늘, 새벽에 좋아요.'},
+ {id:'PER',ko:'페르세우스자리 유성우',pm:[8,12],s:[7,17],e:[8,24],zhr:100,ra:48,dec:58,par:'스위프트-터틀 혜성',note:'여름 밤 가장 인기 있는 유성우. 밝은 불덩이가 많아요.'},
+ {id:'ORI',ko:'오리온자리 유성우',pm:[10,21],s:[10,2],e:[11,7],zhr:20,ra:95,dec:16,par:'핼리 혜성',note:'빠르고 흔적이 남는 유성이 많아요.'},
+ {id:'STA',ko:'황소자리 남쪽 유성우',pm:[11,5],s:[9,28],e:[12,2],zhr:5,ra:52,dec:13,par:'엥케 혜성',note:'개수는 적지만 느리고 밝은 불덩이가 가끔 나타나요.'},
+ {id:'NTA',ko:'황소자리 북쪽 유성우',pm:[11,12],s:[10,20],e:[12,10],zhr:5,ra:58,dec:22,par:'엥케 혜성',note:'남쪽 유성우와 함께 느린 불덩이가 나타나요.'},
+ {id:'LEO',ko:'사자자리 유성우',pm:[11,17],s:[11,6],e:[11,30],zhr:15,ra:152,dec:22,par:'템펠-터틀 혜성',note:'새벽 동쪽, 사자자리 \'낫\' 모양에서 퍼져요. 매우 빠른 유성.'},
+ {id:'GEM',ko:'쌍둥이자리 유성우',pm:[12,14],s:[12,4],e:[12,20],zhr:150,ra:112,dec:33,par:'소행성 파에톤',note:'1년 중 가장 많은 유성우. 밤 10시 이후 잘 보여요.'},
+ {id:'URS',ko:'작은곰자리 유성우',pm:[12,22],s:[12,17],e:[12,26],zhr:10,ra:217,dec:76,par:'터틀 혜성',note:'북쪽 하늘, 북극성 근처에서 퍼져요.'},
+];
+function showers(now,lat,lon,tz){
+  const obs=obsOf(lat,lon),y=new Date(now+tz*3600e3).getUTCFullYear(),res=[];
+  const mk=(yr,md,h)=>Date.UTC(yr,md[0]-1,md[1],h-tz);
+  for(const s of SHOWERS){
+    let pick=null;
+    for(const yr of [y-1,y,y+1]){
+      const st=mk(s.s[0]>s.e[0]?yr-1+0:yr,s.s,0),en=mk(yr,s.e,24); // 12월→1월 걸치는 경우: 시작은 전년
+      const pk=mk(yr,s.pm,3);
+      if(en>=now){pick={st,en,pk};break}
+    }
+    if(!pick)continue;
+    const {st,en,pk}=pick;
+    const pd=new Date(pk);
+    const moonFrac=A.Illumination('Moon',pd).phase_fraction;
+    // 극대일 밤(전날 20시~당일 05시) 복사점 최고 고도·시각, 그때 달 고도
+    let best=null;for(let t=pk-7*3600e3;t<=pk+2*3600e3;t+=30*60e3){const d=new Date(t);if(sunAlt(d,obs)>-8)continue;
+      const h=A.Horizon(d,obs,s.ra/15,s.dec,'normal');if(!best||h.altitude>best.alt)best={t,alt:h.altitude,az:h.azimuth}}
+    let mAlt=null;if(best)mAlt=eqh('Moon',new Date(best.t),obs).alt;
+    const moonBad=moonFrac>0.35&&mAlt!=null&&mAlt>0;
+    const good=best&&best.alt>25&&!moonBad;
+    const status=now<st?'upcoming':now>pk+24*3600e3?(now<=en?'after':'ended'):'peak';
+    const state=now<st?'예정':(now<=en?'활동 중':'종료');
+    res.push({...s,st,en,pk,moonFrac,moonAlt:mAlt,best,good,moonBad,state,
+      dpk:Math.round((pk-now)/DAY),active:now>=st&&now<=en,
+      cond:!best?'서산에서는 복사점이 낮아 보기 어려워요':good?'좋음':(moonBad?'달빛이 방해해요':'보통')});
+  }
+  return res.sort((a,b)=>(a.active===b.active?(a.active?Math.abs(a.pk-now)-Math.abs(b.pk-now):a.pk-b.pk):(a.active?-1:1)));
+}
+root.NOWCALC={today,events,showers,pairs,jupiterMoons,saturnTilt,SHOWERS,KO,PIDS,dirWord,nightStart,localMidnight,sunAlt,obsOf,eqh,bestView,RAD_KM};
+})(typeof window!=='undefined'?window:globalThis);
+
+(function(){
+'use strict';
+const PL=window.PL; const {S,FR,CON}=PL; const G=PL.gfx; const C=window.NOWCALC;
+const $=s=>document.querySelector(s); const esc=PL.esc;
+const DAY=86400e3,D2R=Math.PI/180;
+const pad=n=>String(n).padStart(2,'0');
+const hhmm=t=>{if(t==null)return '—';const d=new Date(t+S.tz*3600e3);return pad(d.getUTCHours())+':'+pad(d.getUTCMinutes())};
+const wd=d=>'일월화수목금토'[d.getUTCDay()];
+function dateStr(t,withTime){const d=new Date(t+S.tz*3600e3);return (d.getUTCMonth()+1)+'월 '+d.getUTCDate()+'일('+wd(d)+')'+(withTime?' '+pad(d.getUTCHours())+':'+pad(d.getUTCMinutes()):'')}
+function dday(t,base){const a=C.localMidnight(t,S.tz),b=C.localMidnight(base,S.tz);const n=Math.round((a-b)/DAY);return n===0?'오늘':n>0?'D-'+n:'D+'+(-n)}
+const PCOL={Mercury:'#c8c4bd',Venus:'#fff4d2',Mars:'#ff8460',Jupiter:'#ffe3b8',Saturn:'#f4dfa0',Uranus:'#a7ecf3',Neptune:'#78a6ff'};
+const MOONE=['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'];
+const moonEmoji=ph=>MOONE[Math.round((((ph%360)+360)%360)/45)%8];
+const conKo=k=>(CON[k]&&CON[k].ko)||k;
+
+const M={open:false,tab:'today',filter:'all',showerSel:null,cache:null,cacheKey:'',ev:null,evKey:'',sh:null,shKey:'',lastS:0,lastPlace:''};
+let el=null;
+function build(){
+  el=document.createElement('div'); el.id='nowp'; el.className='panel';
+  el.style.cssText='position:absolute;left:0;top:0;bottom:0;width:372px;max-width:94vw;padding:14px 14px 90px;display:none;overflow:auto;z-index:13;border-radius:0 12px 12px 0;font-size:13.5px;line-height:1.5';
+  document.getElementById('app').appendChild(el);
+  const st=document.createElement('style');
+  st.textContent=`#nowp h2{margin:0 0 4px;font-size:16px;color:var(--acc)}#nowp h4{margin:14px 0 6px;font-size:13.5px;color:#9be7ff}#nowp .sub{color:var(--dim);font-size:12px}
+  #nowp .card{padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer}#nowp .card:hover{background:rgba(70,100,180,.35)}
+  #nowp .card.nc{cursor:default}#nowp .card.nc:hover{background:none}
+  #nowp .card b{color:var(--acc)}#nowp .card small{display:block;color:var(--dim);font-size:11.5px}
+  #nowp .tabs{display:flex;gap:4px;margin:8px 0 4px}#nowp .tabs button{flex:1;padding:7px 2px;font-size:12.5px}
+  #nowp .chip{display:inline-block;padding:1px 7px;border-radius:9px;font-size:11px;margin-left:4px;vertical-align:1px;border:1px solid var(--line);color:var(--dim)}
+  #nowp .chip.g{background:rgba(90,220,120,.16);border-color:rgba(90,220,120,.5);color:#9bf0b0}#nowp .chip.y{background:rgba(255,211,110,.14);border-color:rgba(255,211,110,.45);color:#ffd36e}#nowp .chip.r{background:rgba(255,120,120,.12);border-color:rgba(255,120,120,.4);color:#ff9d9d}
+  #nowp .tip{background:rgba(255,211,110,.08);border:1px solid rgba(255,211,110,.3);border-radius:8px;padding:7px 10px;margin:8px 0;font-size:12.5px}
+  #nowp .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+  #nowp .fl{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0}#nowp .fl button{padding:4px 9px;font-size:12px}
+  #nowp canvas{display:block;width:100%;border-radius:8px;background:rgba(0,0,10,.45);border:1px solid var(--line)}
+  #nowp .row{display:flex;justify-content:space-between;gap:8px}#nowp .kv{color:var(--dim)}`;
+  document.head.appendChild(st);
+}
+// ------------------------------------------------------------ 데이터 캐시
+function todayData(){
+  const key=Math.round(S.t/(5*60e3))+'|'+S.lat.toFixed(2)+'|'+S.lon.toFixed(2);
+  if(M.cacheKey!==key){M.cache=C.today(S.t,S.lat,S.lon,S.tz);M.cacheKey=key}
+  return M.cache;
+}
+function evData(){
+  const nowT=Date.now(),key=S.lat.toFixed(2)+'|'+S.lon.toFixed(2)+'|'+new Date(nowT).toDateString();
+  if(M.evKey!==key){M.ev=C.events(nowT-1*DAY,nowT+400*DAY,S.lat,S.lon,S.tz);M.evKey=key}
+  return M.ev;
+}
+function shData(){
+  const nowT=Date.now(),key=S.lat.toFixed(2)+'|'+S.lon.toFixed(2)+'|'+new Date(nowT).toDateString();
+  if(M.shKey!==key){M.sh=C.showers(nowT,S.lat,S.lon,S.tz);M.shKey=key}
+  return M.sh;
+}
+// ------------------------------------------------------------ 이동
+function setTime(t){S.t=t;S.playing=false;S.rate=0;PL.setRateIdx(4);PL.dirty()}
+function prep(){PL.frameSetup();PL.camSetup();PL.computeStars()}
+function bodyOf(id){return id==='Sun'?FR.sun:id==='Moon'?FR.moon:FR.planets.find(p=>p.id===id)}
+function goBody(id,fov){
+  prep(); const b=bodyOf(id); if(!b)return; PL.select({type:'body',b},true);
+  if(fov){const a=PL.vecAzAlt(b.h);PL.flyTo({az:a.az,alt:Math.max(a.alt,-3),fov},900)}
+  if(b.alt<-1)PL.toast('지금 시각에는 '+(b.ko||id)+'이(가) 지평선 아래에 있어요. 시간을 바꿔 보세요.',3000);
+}
+function goPair(a,b){
+  prep(); const A=bodyOf(a),B=bodyOf(b); if(!A||!B)return;
+  const v=[A.h[0]+B.h[0],A.h[1]+B.h[1],A.h[2]+B.h[2]],n=Math.hypot(...v)||1;
+  PL.flyTo({...PL.vecAzAlt([v[0]/n,v[1]/n,v[2]/n]),fov:22},1000);
+  S.hl={cons:[],stars:[],ast:[],guides:[],dso:[],labels:true,pulse:true};PL.dirty();
+}
+function jumpEvent(e){
+  const obs=C.obsOf(S.lat,S.lon); let t=e.t;
+  const best=(ids,span,lims)=>{for(const sl of lims){const b=C.bestView(e.t,ids,obs,span,sl);if(b)return b.t}return null};
+  if(e.type==='planet')t=best([e.body],14*3600e3,[-14,-8,-6,-2])||e.t;
+  if(e.type==='near'&&e.view)t=best([e.a,e.b],16*3600e3,[-14,-8,-6])||e.view.t;
+  if(e.type==='eclipse'&&!e.vis){PL.toast(e.title+'은(는) 서산에서는 볼 수 없어요 ('+dateStr(e.t,true)+'). 달·해가 지평선 아래이거나 그림자가 지구의 다른 곳을 지나요.',6000);return}
+  setTime(t); prep(); M.showerSel=null;
+  if(e.type==='eclipse'){
+    const d=e.detail||{}; let m='';
+    if(e.title.indexOf('월식')>=0){m=(d.kind==='penumbral'?'반그림자 ':'부분식 ')+hhmm(d.pb)+'~'+hhmm(d.pe)+(d.tb?' · 개기식 '+hhmm(d.tb)+'~'+hhmm(d.te):'')+' · 최대 '+hhmm(e.t)}
+    else m='일식 최대 '+hhmm(e.t)+' (서산 기준)';
+    PL.toast(m,6500); goBody(e.title.indexOf('일식')>=0?'Sun':'Moon',e.title.indexOf('일식')>=0?30:25);
+  }else if(e.type==='moon'){
+    if(e.title.indexOf('삭')>=0){PL.toast('삭에는 달이 해와 같은 쪽에 있어서 보이지 않아요. 달 옆의 어두운 하늘을 구경해 보세요!',4500);goBody('Moon',40)}
+    else goBody('Moon',30);
+  }else if(e.type==='planet'){goBody(e.body,e.body==='Venus'||e.body==='Mercury'?40:30)}
+  else if(e.type==='near'){goPair(e.a,e.b);PL.toast((e.view?'가장 잘 보이는 시각으로 이동했어요 ('+dateStr(t,true)+')':'서산에서는 보기 어려운 시각이에요'),4000)}
+  else if(e.type==='season'){goBody('Sun',60)}
+  render();
+}
+function goShower(s){
+  M.showerSel=s.id; const t=s.best?s.best.t:s.pk;
+  setTime(t); prep();
+  const v=PL.raDecVecDate(s.ra/15,s.dec),h=PL.j2000H(v[0],v[1],v[2]),a=PL.vecAzAlt(h);
+  PL.flyTo({az:a.az,alt:Math.max(15,Math.min(a.alt,70)),fov:95},1100);
+  PL.toast((s.active?'지금 활동 중':'예정')+': '+s.ko+' · 극대 '+dateStr(s.pk)+' · 가장 좋은 시각 '+hhmm(t),5500);
+  render(); PL.dirty();
+}
+// ------------------------------------------------------------ 그리기 (패널 내 미니 도표)
+function drawJ(cv,mo){
+  const dpr=2,W=340,H=92; cv.width=W*dpr;cv.height=H*dpr; const g=cv.getContext('2d'); g.scale(dpr,dpr); cv.style.height=H+'px';
+  const cx=W/2,cy=H/2+4,sc=5.6;
+  g.strokeStyle='rgba(120,150,220,.25)';g.beginPath();g.moveTo(8,cy);g.lineTo(W-8,cy);g.stroke();
+  g.fillStyle='#ffe3b8';g.beginPath();g.arc(cx,cy,6.5,0,7);g.fill();
+  const col={io:'#ffd36e',europa:'#cfe8ff',ganymede:'#a8ffc8',callisto:'#ff9f88'};
+  g.font='11px sans-serif';g.textAlign='center';
+  mo.forEach((m,i)=>{const x=cx+m.x*sc,y=cy-m.y*sc;g.fillStyle=col[m.k];g.beginPath();g.arc(x,y,3.2,0,7);g.fill();g.fillText(m.ko,x,y+(i%2?-8:15))});
+  g.fillStyle='rgba(160,180,230,.75)';g.textAlign='left';g.fillText('◀ 동쪽',6,13);g.textAlign='right';g.fillText('서쪽 ▶',W-6,13);
+}
+function drawSat(cv,B){
+  const dpr=2,W=170,H=74; cv.width=W*dpr;cv.height=H*dpr; const g=cv.getContext('2d'); g.scale(dpr,dpr); cv.style.height=H+'px';
+  const cx=W/2,cy=H/2,rp=14,rx=38,ry=Math.max(1.2,rx*Math.abs(Math.sin(B*D2R)));
+  g.lineWidth=5;g.strokeStyle='rgba(235,215,160,.55)';g.beginPath();g.ellipse(cx,cy,rx,ry,0,Math.PI,2*Math.PI);g.stroke(); // 뒤쪽
+  g.fillStyle='#f4dfa0';g.beginPath();g.arc(cx,cy,rp,0,7);g.fill();
+  g.strokeStyle='rgba(235,215,160,.9)';g.beginPath();g.ellipse(cx,cy,rx,ry,0,0,Math.PI);g.stroke(); // 앞쪽
+  g.lineWidth=1;
+}
+// ------------------------------------------------------------ 렌더
+function chipVis(p){
+  if(!p.win)return `<span class="chip r">밤에 안 보여요</span>`;
+  return `<span class="chip g">오늘 밤 보여요</span>`+(p.mag>5.4?`<span class="chip y">쌍안경 필요</span>`:'');
+}
+function whyNot(p){return p.elong<18?'태양과 너무 가까워 해 빛에 묻혀요.':'밤에는 지평선 아래에 있어요 (낮에만 떠 있어요).'}
+function summaryLine(T){
+  const vis=T.planets.filter(p=>p.win&&p.mag<=3.5).sort((a,b)=>a.mag-b.mag);
+  const t1=vis.length?'맨눈 행성: '+vis.map(p=>p.ko).join(' · '):'밤에 맨눈으로 볼 행성이 없어요';
+  const mf=Math.round(T.moon.frac*100);
+  return `${moonEmoji(T.moon.phase)} 달은 ${PL.moonPhaseName(T.moon.phase)} (밝은 면 ${mf}%) · 🪐 ${t1}`;
+}
+function renderToday(){
+  const T=todayData(); const live=Math.abs(Date.now()-S.t)<10*60e3;
+  let h='';
+  h+=`<div class="tip">${summaryLine(T)}</div>`;
+  // 달
+  const m=T.moon,dk=Math.round(m.distKm/100)*100;
+  const dnote=m.distKm<365000?'가까운 편 (평소보다 커 보여요)':m.distKm>400000?'먼 편 (작아 보여요)':'평균 거리에 가까워요';
+  h+=`<h4>🌙 달</h4><div class="card" data-body="Moon"><b>${moonEmoji(m.phase)} ${PL.moonPhaseName(m.phase)}</b> <span class="sub">월령 ${m.age.toFixed(1)}일 · 밝은 면 ${Math.round(m.frac*100)}%</span>
+   <small>지구까지 ${dk.toLocaleString('ko-KR')} km · ${dnote}</small>
+   <small>뜸 ${hhmm(m.rise)} · 짐 ${hhmm(m.set)} · 지금 ${m.alt>0?C.dirWord(m.az)+'쪽 고도 '+Math.round(m.alt)+'°':'지평선 아래'}</small>
+   <small>다음 보름달 ${m.nextFull?dateStr(m.nextFull)+' ('+dday(m.nextFull,S.t)+')':'—'} · 다음 삭 ${m.nextNew?dateStr(m.nextNew)+' ('+dday(m.nextNew,S.t)+')':'—'}</small></div>`;
+  // 태양
+  const sn=T.sun;
+  h+=`<h4>☀ 태양</h4><div class="card" data-body="Sun"><b>일출 ${hhmm(sn.rise)} · 일몰 ${hhmm(sn.set)}</b> <span class="sub">낮 ${sn.len?Math.floor(sn.len/3600e3)+'시간 '+Math.round(sn.len%3600e3/60e3)+'분':'—'}</span>
+   <small>태양은 지금 <b>${conKo(sn.con)}</b> 방향에 있어요. 그래서 이 별자리는 낮에 떠 있어 밤에는 볼 수 없어요.</small></div>`;
+  // 행성
+  h+=`<h4>🪐 행성 — 오늘 밤 볼 수 있을까?</h4><div class="sub" style="margin-bottom:5px">${esc(dateStr(T.night0,false))} 저녁 6시~다음 날 아침 8시, 해가 충분히 진 뒤 고도 8° 이상일 때를 기준으로 했어요.</div>`;
+  const order=T.planets.slice().sort((a,b)=>(b.win?1:0)-(a.win?1:0)||a.mag-b.mag);
+  h+=order.map(p=>{
+    const win=p.win?`<small>🔭 ${hhmm(p.win.first)}~${hhmm(p.win.last)} · 가장 높을 때 ${C.dirWord(p.win.best.az)}쪽 고도 ${Math.round(p.win.best.alt)}° (${hhmm(p.win.best.t)})</small>`:`<small>${whyNot(p)}</small>`;
+    const ph=(p.id==='Mercury'||p.id==='Venus'||p.id==='Mars')?` · 밝은 면 ${Math.round(p.phase*100)}%`:'';
+    return `<div class="card" data-body="${p.id}"><span class="dot" style="background:${PCOL[p.id]}"></span><b>${p.ko}</b>${chipVis(p)} <span class="sub">${p.mag.toFixed(1)}등급</span>${win}
+      <small>뜸 ${hhmm(p.rise)} · 짐 ${hhmm(p.set)} · 거리 ${p.distAU.toFixed(2)} AU (빛이 ${(p.distAU*8.3167).toFixed(p.distAU>10?0:1)}분 걸려요) · 크기 ${p.size.toFixed(1)}″${ph}</small></div>`}).join('');
+  // 목성/토성
+  h+=`<h4>🔭 쌍안경으로 보면</h4><div class="card nc"><b>목성의 갈릴레이 위성</b> <span class="sub">${live?'지금':'이 시각'} 위치 (목성 반지름 단위)</span><canvas id="nowJ"></canvas>
+   <small>작은 쌍안경으로도 4개의 점이 목성 옆에 일직선으로 보여요. 몇 시간만 지나도 위치가 바뀌어요 — 시간을 빨리 돌려 확인해 보세요!</small></div>`;
+  const B=T.saturn;
+  h+=`<div class="card nc"><b>토성 고리의 기울기</b> <span class="sub">${Math.abs(B).toFixed(1)}° (${B<0?'남쪽':'북쪽'} 면이 보여요)</span><canvas id="nowS" style="max-width:170px;margin:6px 0"></canvas>
+   <small>0°에 가까울수록 고리가 얇은 선처럼 보이고, 클수록 활짝 열려 보여요. 약 15년마다 고리가 옆모습이 되어 거의 사라져 보여요.</small></div>`;
+  return h;
+}
+function renderEvents(){
+  const ev=evData(),nowT=Date.now();
+  const F=[['all','전체'],['near','가까워짐'],['eclipse','일·월식'],['planet','행성'],['moon','달'],['season','절기']];
+  let h=`<div class="sub">앞으로 1년 동안 서산에서 볼 수 있는 현상을 계산했어요. 누르면 그 시각의 하늘로 이동합니다.</div><div class="fl">`
+   +F.map(f=>`<button class="btn sm${M.filter===f[0]?' on':''}" data-f="${f[0]}">${f[1]}</button>`).join('')+`</div>`;
+  const L=ev.filter(e=>e.t>=nowT-6*3600e3&&(M.filter==='all'||e.type===M.filter)).slice(0,60);
+  if(!L.length)h+=`<div class="sub">해당하는 현상이 없어요.</div>`;
+  h+=L.map((e,i)=>{
+    let chip='';
+    if(e.type==='eclipse')chip=e.vis?`<span class="chip g">서산에서 보여요</span>`:`<span class="chip r">서산에서는 안 보여요</span>`;
+    else if(e.type==='near')chip=e.view?`<span class="chip g">서산 밤하늘</span>`:`<span class="chip r">보기 어려워요</span>`;
+    else if(e.super)chip=`<span class="chip y">슈퍼문</span>`;
+    return `<div class="card" data-ev="${ev.indexOf(e)}"><b>${e.icon} ${esc(e.title)}</b>${chip} <span class="sub">${dday(e.t,nowT)}</span><small style="color:#9bb0e0">${dateStr(e.t,true)}</small><small>${esc(e.desc)}</small></div>`}).join('');
+  h+=`<div class="sub" style="margin-top:8px">※ 시각은 한국 표준시(서산 기준) 계산값이에요. 일식은 반드시 일식 안경으로 보세요.</div>`;
+  return h;
+}
+function renderShowers(){
+  const sh=shData(),nowT=Date.now();
+  let h=`<div class="sub">유성우는 혜성·소행성이 남긴 먼지 알갱이를 지구가 지나가며 생겨요. 한 점(복사점)에서 사방으로 퍼지는 것처럼 보여요.</div>
+   <div class="tip">달빛이 약하고 어두운 곳에서, <b>복사점 한곳이 아니라 하늘 전체를 넓게</b> 올려다보세요. 20분쯤 눈이 어둠에 익은 뒤가 좋아요.</div>`;
+  h+=sh.map(s=>{
+    const st=s.active?`<span class="chip g">활동 중</span>`:`<span class="chip">예정</span>`;
+    const cond=s.cond==='좋음'?`<span class="chip g">관측 좋음</span>`:s.best?`<span class="chip y">${esc(s.cond)}</span>`:`<span class="chip r">${esc(s.cond)}</span>`;
+    const pk=s.dpk===0?'오늘 극대':s.dpk>0?`극대 D-${s.dpk}`:`극대 ${-s.dpk}일 전에 지났어요`;
+    return `<div class="card${M.showerSel===s.id?' on':''}" data-sh="${s.id}" style="${M.showerSel===s.id?'border-color:#ffd36e':''}"><b>☄ ${esc(s.ko)}</b>${st}${cond}
+      <small style="color:#9bb0e0">${pk} · ${dateStr(s.pk)} · 시간당 최대 약 ${s.zhr}개</small>
+      <small>활동 기간 ${s.s[0]}/${s.s[1]}~${s.e[0]}/${s.e[1]} · 근원 ${esc(s.par)}</small>
+      ${s.best?`<small>극대일 밤, 복사점이 가장 높은 때 ${hhmm(s.best.t)} (${C.dirWord(s.best.az)}쪽 고도 ${Math.round(s.best.alt)}°) · 달 밝기 ${Math.round(s.moonFrac*100)}%${s.moonAlt!=null&&s.moonAlt>0?' (달이 떠 있어요)':''}</small>`:'<small>극대일 밤 서산에서는 복사점이 거의 안 올라와요.</small>'}
+      <small>${esc(s.note)}</small></div>`}).join('');
+  h+=`<div class="btns" style="margin-top:8px"><button class="btn sm" id="nowShOff">복사점 표시 끄기</button></div>
+   <div class="sub" style="margin-top:6px">※ 복사점 위치는 극대일 기준 근사값이에요(하루 약 1°씩 이동). 시간당 개수(ZHR)는 이상적인 조건의 값이라 실제로는 더 적게 보여요.</div>`;
+  return h;
+}
+function render(){
+  if(!el)build();
+  M.lastS=S.t; M.lastPlace=S.place.id+S.lat+S.lon;
+  const live=Math.abs(Date.now()-S.t)<10*60e3;
+  let body='';
+  try{ body=M.tab==='today'?renderToday():M.tab==='events'?renderEvents():renderShowers() }
+  catch(e){ console.warn('now render',e); body='<div class="tip">계산 중 문제가 생겼어요. 장소나 시각을 바꿔 다시 눌러 보세요.</div>' }
+  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><h2>🌌 지금 우주</h2><button class="btn sm" id="nowClose">✕</button></div>
+   <span class="sub">${live?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#5f5;margin-right:5px"></span>지금 기준':'📅 '+esc(dateStr(S.t,true))+' 기준'} · ${esc(S.place.name)}${live?'':' <button class="btn sm" id="nowLive" style="margin-left:6px">지금으로</button>'}</span>
+   <div class="tabs"><button class="btn sm${M.tab==='today'?' on':''}" data-tab="today">오늘의 천문</button><button class="btn sm${M.tab==='events'?' on':''}" data-tab="events">다가오는 현상</button><button class="btn sm${M.tab==='showers'?' on':''}" data-tab="showers">유성우</button></div>`+body;
+  $('#nowClose').onclick=close;
+  const lv=$('#nowLive'); if(lv)lv.onclick=()=>{S.t=Date.now();S.rate=1;S.playing=true;PL.setRateIdx(5);PL.dirty();render()};
+  el.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{M.tab=b.dataset.tab;if(M.tab!=='showers')M.showerSel=null;el.scrollTop=0;render();PL.dirty()});
+  el.querySelectorAll('[data-body]').forEach(c=>c.onclick=()=>goBody(c.dataset.body,c.dataset.body==='Sun'||c.dataset.body==='Moon'?35:28));
+  el.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{M.filter=b.dataset.f;render()});
+  el.querySelectorAll('[data-ev]').forEach(c=>c.onclick=()=>jumpEvent(M.ev[+c.dataset.ev]));
+  el.querySelectorAll('[data-sh]').forEach(c=>c.onclick=()=>goShower(M.sh.find(s=>s.id===c.dataset.sh)));
+  const so=$('#nowShOff'); if(so)so.onclick=()=>{M.showerSel=null;render();PL.dirty()};
+  if(M.tab==='today'){const T=M.cache; const j=$('#nowJ'); if(j&&T)drawJ(j,T.jmoons); const s=$('#nowS'); if(s&&T)drawSat(s,T.saturn)}
+}
+// ------------------------------------------------------------ 하늘 위 표시 (유성우 복사점)
+function drawShower(now){
+  if(!M.open||M.tab!=='showers'||!M.showerSel)return;
+  const s=(M.sh||[]).find(x=>x.id===M.showerSel); if(!s)return;
+  const v=PL.raDecVecDate(s.ra/15,s.dec),h=PL.j2000H(v[0],v[1],v[2]);
+  if(!G.proj(...h))return; const x=G.P.x,y=G.P.y,g=G.ctx;
+  g.save();
+  const N=16;
+  for(let k=0;k<N;k++){
+    const base=(k/N)*Math.PI*2+Math.sin(k*12.9)*0.25;
+    const ph=((now/1700)+k*0.371)%1, r0=26+ph*(120+(k%4)*45), len=22+(k%3)*12;
+    const a=Math.sin(Math.PI*ph);
+    const x1=x+Math.cos(base)*r0,y1=y+Math.sin(base)*r0,x0=x+Math.cos(base)*(r0-len),y0=y+Math.sin(base)*(r0-len);
+    const gr=g.createLinearGradient(x0,y0,x1,y1);gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(1,'rgba(255,255,255,'+(0.85*a).toFixed(2)+')');
+    g.strokeStyle=gr;g.lineWidth=1.8;g.beginPath();g.moveTo(x0,y0);g.lineTo(x1,y1);g.stroke();
+  }
+  g.strokeStyle='rgba(255,211,110,.9)';g.lineWidth=1.6;g.beginPath();g.arc(x,y,13,0,7);g.moveTo(x-20,y);g.lineTo(x-8,y);g.moveTo(x+8,y);g.lineTo(x+20,y);g.moveTo(x,y-20);g.lineTo(x,y-8);g.moveTo(x,y+8);g.lineTo(x,y+20);g.stroke();
+  G.label('복사점 · '+s.ko,x+18,y-20,{color:'#ffe9a8',bold:true,size:13});
+  g.restore();
+}
+const prevPost=window.__postRender;
+window.__postRender=function(now){ if(prevPost)prevPost(now); try{drawShower(now)}catch(e){console.warn('now overlay',e)} };
+const prevTick=window.__tick;
+window.__tick=function(now,dt){let a=false;if(prevTick)a=prevTick(now,dt);if(M.open&&M.tab==='showers'&&M.showerSel)a=true;return a};
+// ------------------------------------------------------------ 열기/닫기
+function open(){
+  if(window.SHOW_API&&window.SHOW_API.SH.on)window.SHOW_API.stopShow();
+  if(window.TONIGHT_API)window.TONIGHT_API.close();
+  if(window.ZODIAC_API)window.ZODIAC_API.close();
+  M.open=true; if(!el)build(); el.style.display='block'; $('#info').style.display='none';
+  const W=window.innerWidth; if(W>=900){const wp=Math.min(372,W*0.94);S.cxFrac=(wp+(W-wp)/2)/W;S.cyFrac=0.5}else{S.cxFrac=0.5;S.cyFrac=0.5}
+  render(); PL.refreshToolbar(); PL.dirty();
+}
+function close(){
+  if(!M.open)return; M.open=false; M.showerSel=null; if(el)el.style.display='none';
+  S.cxFrac=0.5;S.cyFrac=0.5; PL.refreshToolbar(); PL.dirty();
+}
+window.toggleNow=()=>M.open?close():open();
+window.__nowOn=()=>M.open;
+setInterval(()=>{
+  if(!M.open||M.tab!=='today')return;
+  const key=S.place.id+S.lat+S.lon;
+  if(Math.abs(S.t-M.lastS)>10*60e3||key!==M.lastPlace){const sc=el.scrollTop;render();el.scrollTop=sc}
+},2000);
+window.NOW_API={open,close,M,render};
 })();
 
 (function(){
