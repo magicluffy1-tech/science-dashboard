@@ -12,6 +12,13 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family
 canvas#sky{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 canvas#sky.drag{cursor:grabbing}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+
+#wm{position:absolute;right:10px;bottom:90px;z-index:4;display:inline-flex;align-items:center;gap:6px;padding:3px 13px 3px 4px;background:rgba(255,255,255,.96);border:1px solid #d6dbe4;border-radius:999px;box-shadow:0 1px 5px rgba(0,0,0,.4);font-family:Georgia,'Times New Roman',serif;pointer-events:none;user-select:none;-webkit-user-select:none;line-height:1}
+#wm .c{width:20px;height:20px;border-radius:50%;background:#2f8f5b;color:#fff;font:700 12px/20px Arial,sans-serif;text-align:center}
+#wm .m{color:#666;font-size:13px}
+#wm .n{color:#2b7a52;font-size:14.5px;font-weight:700}
+#app.arOn #wm{bottom:104px}
+@media (max-width:520px){#wm{transform:scale(.88);transform-origin:bottom right;right:8px;bottom:90px}}
 #hudTL{position:absolute;left:10px;top:10px;padding:8px 12px;font-size:13px;line-height:1.5;max-width:46vw;pointer-events:none}
 #hudTL b{color:var(--acc);font-weight:600}
 #hudTL .small{color:var(--dim);font-size:12px}
@@ -82,6 +89,7 @@ canvas#sky.drag{cursor:grabbing}
 </head>
 <body>
 <div id="app">
+<div id="wm" aria-label="Made by Cho"><span class="c">C</span><span class="m">Made by</span><span class="n">Cho</span></div>
   <canvas id="sky"></canvas>
   <div id="fade"></div>
   <div id="hudTL" class="panel"></div>
@@ -429,7 +437,7 @@ const S={
   t:Date.now(), rate:1, playing:true,
   az:180, alt:35, fov:100,
   tgt:null,
-  show:{lines:true,names:true,stars:true,bodies:true,dso:true,milky:true,meridian:false,agrid:false,egrid:false,atmo:true,ground:true,ast:true,trails:false},
+  show:{lines:true,names:true,stars:true,bodies:true,dso:true,milky:true,meridian:false,agrid:false,egrid:false,atmo:true,ground:true,map:true,ast:true,trails:false},
   lp:3, starScale:1,
   sel:null, hl:{cons:[],stars:[],ast:[],guides:[],dso:[],labels:true,pulse:true}, measure:{on:false,pts:[]},
   trailHours:3, forceLim:null,
@@ -1009,6 +1017,7 @@ function drawMoon(){
 
 // ---- horizon / ground
 function hill(az){
+  if(window.__mapOn&&window.__mapOn())return 0;
   const a=az*D2R;
   return Math.max(0.15, 1.6+1.5*Math.sin(a*2+0.6)+1.0*Math.sin(a*5+1.7)+0.7*Math.sin(a*11+0.2)+0.35*Math.sin(a*23+2.1));
 }
@@ -1029,15 +1038,15 @@ function drawGround(){
     if(pts.length<2){ctx.restore();return}
     ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);
     ctx.lineTo(clamp(pts[pts.length-1][0],-big,big),FR.H+3000);ctx.lineTo(clamp(pts[0][0],-big,big),FR.H+3000);ctx.closePath();
-    ctx.fillStyle=`rgb(${gr},${gg},${gb})`;ctx.fill();
+    if(!(window.__mapFill&&window.__mapFill('nonzero'))){ctx.fillStyle=`rgb(${gr},${gg},${gb})`;ctx.fill();}
   } else {
     const loop=[];
     for(let az=0;az<=360;az+=2){const v=azAltVec(az,hill(az%360));if(proj(...v))loop.push([clamp(P.x,-big,big),clamp(P.y,-big,big)])}
     if(loop.length<3){ // all ground or no ground
-      if(S.alt<0){ctx.fillStyle=`rgb(${gr},${gg},${gb})`;ctx.fillRect(0,0,FR.W,FR.H)} ctx.restore();return}
+      if(S.alt<0){if(!(window.__mapFill&&window.__mapFill('rect'))){ctx.fillStyle=`rgb(${gr},${gg},${gb})`;ctx.fillRect(0,0,FR.W,FR.H)}} ctx.restore();return}
     if(S.alt>0){ctx.rect(-big,-big,big*2,big*2)}
     ctx.moveTo(loop[0][0],loop[0][1]);for(let i=1;i<loop.length;i++)ctx.lineTo(loop[i][0],loop[i][1]);ctx.closePath();
-    ctx.fillStyle=`rgb(${gr},${gg},${gb})`;ctx.fill('evenodd');
+    if(!(window.__mapFill&&window.__mapFill('evenodd'))){ctx.fillStyle=`rgb(${gr},${gg},${gb})`;ctx.fill('evenodd');}
   }
   ctx.restore();
   // horizon rim light
@@ -1264,7 +1273,7 @@ const TB=[
  'sep',
  ['meridian','📍','남쪽\n자오선'],['agrid','🧭','고도·방위\n격자'],['egrid','🌐','적도·황도\n격자'],['ast','','']/*hidden*/,
  'sep',
- ['atmo','☁','대기'],['ground','⛰','지평선'],['trails','🌀','별 궤적'],
+ ['atmo','☁','대기'],['ground','⛰','지평선'],['map','🛰','위성\n지도'],['trails','🌀','별 궤적'],
  'sep',
  ['ar','📱','폰으로\n보기'],['tonight','🌟','오늘 밤\n추천'],['now','🌌','지금\n우주'],['zodiac','♈','황도\n12궁'],['measure','📏','각도 재기'],['search','🔍','검색'],['v3d','🔭','3D 거리'],['show','🎙','해설'],['settings','⚙','설정'],['full','⛶','전체화면']
 ];
@@ -1387,6 +1396,7 @@ function bindSettings(){
 window.PL={S,FR,STARS,CON,LINES,MEM,AST,DSOS,PLANETS,flyTo,lookAtH,select,showInfo,j2000H,dateH,vecAzAlt,azAltVec,idxByName,byHip,starKo,starDistLy,fmtLy,toast,dirty,setPlace,placeById,PLACES,frameSetup,camSetup,computeStars,localParts,fromLocalInput,toLocalInput,fmtLocal,moonPhaseName,setRate,togglePlay,refreshToolbar,tween,limMagNow,sX,sY,sZ,clamp,smooth,lerp,bvToRGB,sRGB,TYPES,specInfo,esc,yearNow,raDecVecDate,applyM,pickCon,FONT,matrixAt,label:null};
 window.PL.userPlace=PLACES[0];window.PL.setUserPlace=setUserPlace;
 window.PL.render=()=>{render(performance.now())};
+window.PL.skyColorAt=skyColorAt;
 window.PL.gfx={get ctx(){return ctx},proj,P,label,polyline,gcPoints,azAltVec,TAU,offScreen};
 window.PL.setRateIdx=i=>{rateIdx=i};
 
@@ -2930,6 +2940,175 @@ window.NOW_API={open,close,M,render};
 
 (function(){
 'use strict';
+// 🛰 위성지도 지면: 지평선 아래를 실제 위성사진(낮)과 야간 불빛(밤)으로 채웁니다.
+// 지도 타일은 인터넷에서 받아오며, 받지 못하면 기존 지평선 그림으로 자동 복귀합니다.
+const PL=window.PL,{S,FR}=PL; const G=PL.gfx;
+const $=s=>document.querySelector(s);
+const D2R=Math.PI/180,R2D=180/Math.PI;
+const clamp=PL.clamp,lerp=PL.lerp;
+const OBS_H=300;               // 가상 관측 높이(m): 드론처럼 내려다보는 느낌
+const FOG_D=11000;             // 안개로 흐려지는 거리(m)
+const ESRI=(z,x,y)=>'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/'+z+'/'+y+'/'+x;
+const GIBS_LAYERS=[
+  (z,x,y)=>'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/'+z+'/'+y+'/'+x+'.png',
+  (z,x,y)=>'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlackMarble_2016/default/2016-01-01/GoogleMapsCompatible_Level8/'+z+'/'+y+'/'+x+'.png',
+  (z,x,y)=>'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlackMarble_2016/default/default/GoogleMapsCompatible_Level8/'+z+'/'+y+'/'+x+'.png',
+];
+const LEVELS=[{key:'z12',z:12},{key:'z14',z:14},{key:'z16',z:16}]; // 먼 곳 → 가까운 곳 순서로 불러옴
+const N_T=3; // 레벨마다 3×3 타일
+
+const MP={lv:{},lights:null,key:'',failed:false,loading:false,ver:0,msgShown:false,errMsg:false,cfg:null};
+try{ if(localStorage.getItem('maruvi_map')==='0')S.show.map=false }catch(e){}
+
+// ---------------------------------------------------------------- 타일 좌표
+const wX=(lon,z)=>(lon+180)/360*256*Math.pow(2,z);
+const wY=(lat,z)=>{const p=lat*D2R;return (1-Math.log(Math.tan(p)+1/Math.cos(p))/Math.PI)/2*256*Math.pow(2,z)};
+const mpp=(lat,z)=>40075016.686*Math.cos(lat*D2R)/(256*Math.pow(2,z));
+function loadImg(url){
+  return new Promise(res=>{
+    const im=new Image(); im.crossOrigin='anonymous'; let done=false;
+    const fin=ok=>{if(done)return;done=true;res(ok?im:null)};
+    im.onload=()=>fin(true); im.onerror=()=>fin(false); setTimeout(()=>fin(false),15000);
+    im.src=url;
+  });
+}
+async function buildMosaic(urlFn,z,lat,lon){
+  const wx=wX(lon,z),wy=wY(lat,z),X0=Math.floor(wx/256)-1,Y0=Math.floor(wy/256)-1,size=256*N_T,maxT=Math.pow(2,z);
+  const cv=document.createElement('canvas'); cv.width=cv.height=size; const g=cv.getContext('2d',{willReadFrequently:true});
+  let ok=0; const jobs=[];
+  for(let j=0;j<N_T;j++)for(let i=0;i<N_T;i++){
+    const tx=((X0+i)%maxT+maxT)%maxT,ty=Y0+j; if(ty<0||ty>=maxT)continue;
+    jobs.push(loadImg(urlFn(z,tx,ty)).then(im=>{if(im){try{g.drawImage(im,i*256,j*256);ok++}catch(e){}}}));
+  }
+  await Promise.all(jobs);
+  if(!ok)return null;
+  const data=g.getImageData(0,0,size,size).data; // CORS가 막혀 있으면 여기서 예외 → 호출한 쪽에서 처리
+  return {z,size,X0,Y0,wx,wy,mpp:mpp(lat,z),data,ok};
+}
+function keyOf(){return S.lat.toFixed(3)+','+S.lon.toFixed(3)}
+async function startLoad(){
+  if(MP.loading)return; const key=keyOf(); if(MP.key===key&&(MP.lv.z12||MP.failed))return;
+  MP.loading=true; MP.key=key; MP.failed=false; MP.lv={}; MP.lights=null; MP.ver++; MP.errMsg=false; const lat=S.lat,lon=S.lon;
+  PL.toast('🛰 위성지도를 불러오는 중이에요…',2200);
+  try{
+    for(const L of LEVELS){
+      if(keyOf()!==key)break; // 도중에 장소가 바뀌면 중단
+      const m=await buildMosaic(ESRI,L.z,lat,lon);
+      if(!m){ if(L.key==='z12'){MP.failed=true;break} continue }
+      MP.lv[L.key]=m; MP.ver++; PL.dirty();
+      if(L.key==='z12'&&!MP.msgShown){MP.msgShown=true;PL.toast('🛰 위성지도 지면을 켰어요. 폰을 아래로 향하거나 화면을 아래로 끌어 보세요.',4500)}
+    }
+    if(!MP.failed&&keyOf()===key){
+      for(const f of GIBS_LAYERS){
+        let m=null; try{m=await buildMosaic(f,8,lat,lon)}catch(e){m=null}
+        if(m){MP.lights=m;MP.ver++;PL.dirty();break}
+      }
+    }
+  }catch(e){ console.warn('map load',e); if(!MP.lv.z12)MP.failed=true }
+  MP.loading=false;
+  if(MP.failed&&!MP.errMsg){MP.errMsg=true;PL.toast('🛰 위성지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요. 기본 지평선으로 보여 드려요.',6000)}
+  PL.dirty(); updAttr();
+}
+// ---------------------------------------------------------------- 샘플링
+function sampleImg(m,east,north,out){
+  const px=m.wx+east/m.mpp-m.X0*256, py=m.wy-north/m.mpp-m.Y0*256;
+  if(px<1||py<1||px>=m.size-1||py>=m.size-1)return false;
+  const i=((py|0)*m.size+(px|0))*4,d=m.data; if(d[i+3]<250)return false;
+  out[0]=d[i];out[1]=d[i+1];out[2]=d[i+2];return true;
+}
+function sampleLight(m,east,north){
+  const px=m.wx+east/m.mpp-m.X0*256-0.5, py=m.wy-north/m.mpp-m.Y0*256-0.5;
+  if(px<0||py<0||px>=m.size-1||py>=m.size-1)return 0;
+  const x0=px|0,y0=py|0,fx=px-x0,fy=py-y0,d=m.data,s=m.size;
+  const v=(x,y)=>{const i=(y*s+x)*4;return Math.max(d[i],d[i+1],d[i+2])/255};
+  return (v(x0,y0)*(1-fx)+v(x0+1,y0)*fx)*(1-fy)+(v(x0,y0+1)*(1-fx)+v(x0+1,y0+1)*fx)*fy;
+}
+// ---------------------------------------------------------------- 지면 버퍼
+const bufC=document.createElement('canvas'),bufG=bufC.getContext('2d'); let bufImg=null,bufKey='';
+function drawBuf(){
+  const sc=FR.W>900?4:3, w=Math.max(30,Math.ceil(FR.W/sc)), h=Math.max(30,Math.ceil(FR.H/sc));
+  const key=[FR.fE.toFixed(4),FR.fN.toFixed(4),FR.fU.toFixed(4),FR.rE.toFixed(4),FR.rN.toFixed(4),FR.F.toFixed(1),FR.cx|0,FR.cy|0,w,h,Math.round(FR.sunAlt*20),MP.ver,Math.round((FR.moon.alt||0)),Math.round((FR.moon.frac||0)*20),S.lp].join('|');
+  if(key===bufKey&&bufImg)return {w,h};
+  bufKey=key;
+  if(bufC.width!==w||bufC.height!==h){bufC.width=w;bufC.height=h;bufImg=bufG.createImageData(w,h)}
+  const d=bufImg.data; d.fill(0);
+  const dayW=FR.dayW,nf=FR.nf,tw=FR.twi;
+  const moon=FR.moon,ml=(moon.alt>0?(moon.frac||0)*clamp(moon.alt/18,0,1):0);
+  const night=0.07+0.11*ml, illum=lerp(night,1,Math.pow(dayW,0.8));
+  const tintR=lerp(1,0.55,nf)*(1+0.32*tw),tintG=lerp(1,0.72,nf),tintB=lerp(1,1.0,nf)*(1-0.18*tw);
+  const lightK=nf*(1-dayW)*(1.0+(S.lp-1)*0.04);
+  const sv=FR.sunVec,F=FR.F,fE=FR.fE,fN=FR.fN,fU=FR.fU,rE=FR.rE,rN=FR.rN,rU=FR.rU,uE=FR.uE,uN=FR.uN,uU=FR.uU;
+  const lvs=[MP.lv.z16,MP.lv.z14,MP.lv.z12].filter(Boolean), li=MP.lights;
+  const px=[0,0,0],hz=[0,0,0];
+  for(let j=0;j<h;j++){
+    const Y=-(((j+0.5)*sc)-FR.cy)/F;
+    for(let i=0;i<w;i++){
+      const X=(((i+0.5)*sc)-FR.cx)/F,r2=X*X+Y*Y,cc=(4-r2)/(4+r2),kk=4/(4+r2);
+      const vE=cc*fE+X*kk*rE+Y*kk*uE,vN=cc*fN+X*kk*rN+Y*kk*uN,vU=cc*fU+X*kk*rU+Y*kk*uU;
+      if(vU>0.004)continue; // 지평선 위: 하늘 쪽이라 그리지 않음
+      const o=(j*w+i)*4;
+      const t=OBS_H/Math.max(0.0008,-vU), east=vE*t, north=vN*t, dist=Math.hypot(east,north);
+      const fog=1-Math.exp(-dist/FOG_D);
+      let r,g,b;
+      let got=false;
+      for(const m of lvs){ if(sampleImg(m,east,north,px)){got=true;break} }
+      if(got){
+        r=px[0]*illum*tintR; g=px[1]*illum*tintG; b=px[2]*illum*tintB;
+        if(li&&lightK>0.02){
+          let L=sampleLight(li,east,north); L=Math.min(1,L*1.7);
+          if(L>0.01){const a=lightK*L*L*0.9+lightK*L*0.25; r+=255*a; g+=190*a; b+=105*a}
+        }
+      }else{ r=20*illum+4; g=26*illum+5; b=20*illum+6 } // 지도가 없는 곳
+      if(fog>0.01){
+        const cs=clamp(vE*sv[0]+vN*sv[1]+vU*sv[2],-1,1); PL.skyColorAt(1.0,Math.acos(cs),hz);
+        // 지평선 안개는 하늘 색과 같게 — 하늘과 자연스럽게 이어짐
+        const f=Math.min(1,fog*1.05);
+        r=r*(1-f)+hz[0]*f; g=g*(1-f)+hz[1]*f; b=b*(1-f)+hz[2]*f;
+      }
+      d[o]=r>255?255:r;d[o+1]=g>255?255:g;d[o+2]=b>255?255:b;d[o+3]=255;
+    }
+  }
+  bufG.putImageData(bufImg,0,0);
+  return {w,h};
+}
+// ---------------------------------------------------------------- core 연결
+function mapOn(){return !!(S.show.map&&S.show.ground&&MP.lv.z12&&!MP.failed)}
+window.__mapOn=mapOn;
+window.__mapFill=function(rule){
+  if(!mapOn())return false;
+  const g=G.ctx; g.save();
+  if(rule!=='rect')g.clip(rule==='evenodd'?'evenodd':'nonzero');
+  const {w,h}=drawBuf();
+  g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+  g.drawImage(bufC,0,0,w,h,0,0,FR.W,FR.H);
+  g.restore(); return true;
+};
+// ---------------------------------------------------------------- 출처 표기 · 상태 감시
+let attr=null;
+function updAttr(){
+  if(!attr){attr=document.createElement('div');attr.id='mapAttr';document.getElementById('app').appendChild(attr);
+    const st=document.createElement('style');
+    st.textContent='#mapAttr{position:absolute;right:10px;bottom:120px;z-index:3;max-width:min(420px,calc(100vw - 20px));font-size:9.5px;line-height:1.3;color:rgba(235,242,255,.78);text-align:right;text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:none;display:none}#app.arOn #mapAttr{bottom:136px}@media (max-width:520px){#mapAttr{right:8px;bottom:120px}}';
+    document.head.appendChild(st)}
+  attr.style.display=mapOn()?'block':'none';
+  attr.textContent='위성지도 © Esri, Maxar, Earthstar Geographics, GIS User Community'+(MP.lights?' · 야간 불빛 NASA GIBS(VIIRS)':'');
+}
+let lastShow=null;
+setInterval(()=>{
+  const want=!!(S.show.map&&S.show.ground);
+  if(want!==lastShow){
+    lastShow=want; try{localStorage.setItem('maruvi_map',S.show.map?'1':'0')}catch(e){}
+    if(want){MP.failed=false;startLoad()}
+    PL.dirty(); updAttr();
+  }
+  if(want&&!MP.loading&&MP.key!==keyOf()){startLoad()}
+  updAttr();
+},600);
+window.MAP_API={MP,mapOn,startLoad,drawBuf,OBS_H};
+})();
+
+(function(){
+'use strict';
 const PL=window.PL,S=PL.S;
 const $=s=>document.querySelector(s);
 let mode=null; try{mode=localStorage.getItem('maruvi_loc')}catch(e){}
@@ -3022,7 +3201,7 @@ function useHere(opt){
 function buildAsk(){
   const a=document.createElement('div'); a.id='locAsk'; a.className='panel';
   a.style.cssText='position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:12;padding:12px 16px;width:min(500px,calc(100vw - 20px));font-size:14px;line-height:1.55;text-align:center';
-  a.innerHTML=`<div><b style="color:var(--acc)">📍 우리 동네 하늘로 볼까요?</b></div><div style="color:var(--dim);font-size:12.5px;margin:3px 0 8px">위치는 이 기기 안에서만 쓰이고 어디로도 보내지 않아요.<br>지금은 충남 서산 기준으로 보고 있어요.</div><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn" id="locYes">📍 내 위치로 보기</button><button class="btn" id="locPick">🗺 지역 직접 고르기</button><button class="btn" id="locNo">서산으로 보기</button></div>`;
+  a.innerHTML=`<div><b style="color:var(--acc)">📍 우리 동네 하늘로 볼까요?</b></div><div style="color:var(--dim);font-size:12.5px;margin:3px 0 8px">위치는 이 기기 안에서 계산에만 쓰여요. (🛰 위성지도를 켜면 지도 타일 요청이 지도 서버로 가요)<br>지금은 충남 서산 기준으로 보고 있어요.</div><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn" id="locYes">📍 내 위치로 보기</button><button class="btn" id="locPick">🗺 지역 직접 고르기</button><button class="btn" id="locNo">서산으로 보기</button></div>`;
   document.getElementById('app').appendChild(a); $('#toast').style.top='190px';
   $('#locYes').onclick=()=>{hideAsk();useHere({fromBanner:true})};
   $('#locPick').onclick=()=>openChooser('');
@@ -3132,7 +3311,7 @@ async function start(){
       if(r==='denied'){fail('방향 센서 사용이 허락되지 않았어요. (설정 → Safari → 모션 및 방향 접근을 허용해 주세요)');return}
     }
   }catch(e){fail('방향 센서 허락 창을 열 수 없어요: '+(e&&e.message||'')); return}
-  AR.on=true; AR.got=false; AR.sm=null; AR.pre=null; AR.off=loadOff(); loadStab(); AR.freeze=false; AR.warned=false; AR.t0=performance.now(); AR.absSeen=0;
+  AR.on=true; document.getElementById('app').classList.add('arOn'); AR.got=false; AR.sm=null; AR.pre=null; AR.off=loadOff(); loadStab(); AR.freeze=false; AR.warned=false; AR.t0=performance.now(); AR.absSeen=0;
   S.saved_ar={fov:S.fov,cyFrac:S.cyFrac,cxFrac:S.cxFrac,playing:S.playing,rate:S.rate}; S.fov=58;
   window.addEventListener('deviceorientationabsolute',onOrient,true);
   window.addEventListener('deviceorientation',onOrient,true);
@@ -3145,7 +3324,7 @@ async function start(){
 }
 function fail(msg){PL.toast('📱 '+msg,7000)}
 function stop(){
-  if(!AR.on)return; AR.on=false; clearTimeout(AR.timer);
+  if(!AR.on)return; AR.on=false; document.getElementById('app').classList.remove('arOn'); clearTimeout(AR.timer);
   window.removeEventListener('deviceorientationabsolute',onOrient,true);window.removeEventListener('deviceorientation',onOrient,true);
   S.camBasis=null; AR.sm=null; const p=$('#arPanel'); if(p)p.style.display='none'; const ab=$('#arBtn'); if(ab)ab.style.display='none'; const fz=$('#arFreeze'); if(fz){fz.style.display='none';fz.textContent='❄ 고정';fz.classList.remove('on')} AR.freeze=false; $('#hudTL').style.display=''; $('#timebar').style.display='';
   if(S.saved_ar){S.fov=S.saved_ar.fov}
