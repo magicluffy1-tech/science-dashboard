@@ -123,6 +123,12 @@ body.expert .expert-only.inline{display:block}
 #gl .lbl,#mapGL .lbl{position:absolute;left:0;top:0;font:11px var(--mono);color:var(--text);background:rgba(8,12,22,.7);padding:1px 5px;border-radius:4px;pointer-events:none;white-space:nowrap;transform:translate(-50%,-130%)}
 .note{font-size:12.5px;color:var(--muted);max-width:95ch}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+#wm{position:fixed;right:10px;bottom:10px;z-index:30;display:inline-flex;align-items:center;gap:6px;padding:3px 13px 3px 4px;background:rgba(255,255,255,.96);border:1px solid #d6dbe4;border-radius:999px;box-shadow:0 1px 5px rgba(0,0,0,.4);font-family:Georgia,'Times New Roman',serif;pointer-events:none;user-select:none;-webkit-user-select:none;line-height:1}
+#wm .c{width:20px;height:20px;border-radius:50%;background:#2f8f5b;color:#fff;font:700 12px/20px Arial,sans-serif;text-align:center}
+#wm .m{color:#666;font-size:13px}
+#wm .n{color:#2b7a52;font-size:14.5px;font-weight:700}
+@media (max-width:520px){#wm{transform:scale(.88);transform-origin:bottom right;right:8px;bottom:8px}}
+@media print{#wm{display:none}}
 </style>
 </head>
 <body>
@@ -1674,5 +1680,6 @@ requestAnimationFrame(loop);
 window.__dbg={CH1,CH2,MIS,CH4,unlocked,done,gl:()=>gl,STARS,mapGL:()=>mapGL,setMapMode};
 })();
 </script>
+<div id="wm" aria-label="Made by Cho"><span class="c">C</span><span class="m">Made by</span><span class="n">Cho</span></div>
 </body>
 </html>
